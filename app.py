@@ -952,9 +952,47 @@ def merge_uploaded_reports(files):
         r,m=parse_cropcheck_pdf(f.getvalue(),f.name)
         rows.extend(r)
         metas.append(m)
+        # Use paddock name as the To Do Check / Source wherever possible.
+        # Match the recommendation text back to the parsed paddock observation.
+        _rows_for_file = r if isinstance(r, list) else []
         for _todo in m.get("todo_recommendations", []):
+            _todo_key = re.sub(r"\W+", " ", str(_todo).lower()).strip()
+            _matched_paddocks = []
+
+            for _row in _rows_for_file:
+                _paddock = str(_row.get("Paddock", "")).strip()
+                _other = str(_row.get("Other observations", "")).lower()
+                if not _paddock:
+                    continue
+
+                # Match using meaningful words from the action.
+                _words = [
+                    w for w in re.findall(r"[a-z0-9]+", _todo_key)
+                    if len(w) >= 4 and w not in {
+                        "will", "suggest", "recommend", "recommended",
+                        "recommendation", "suggested", "this", "that",
+                        "here", "there", "with", "from", "into", "over",
+                        "next", "once", "also"
+                    }
+                ]
+                _score = sum(1 for w in _words if w in _other)
+                if _words and _score >= max(1, min(2, len(_words))):
+                    _matched_paddocks.append(_paddock)
+
+            # Remove duplicate paddock names while preserving order.
+            _matched_paddocks = list(dict.fromkeys(_matched_paddocks))
+
+            if _matched_paddocks:
+                _source = ", ".join(_matched_paddocks)
+            elif len(_rows_for_file) == 1 and _rows_for_file[0].get("Paddock"):
+                _source = str(_rows_for_file[0].get("Paddock")).strip()
+            else:
+                # File name is retained only as a fallback when no paddock can
+                # be reliably associated with the action.
+                _source = f.name
+
             comments.append({
-                "source": f.name,
+                "source": _source,
                 "action": _todo,
             })
     if not rows:
@@ -1209,7 +1247,7 @@ def create_pdf(df,grower,advisor,observation,inspection_date,assessment,recommen
     if todo_items:
         todo_rows = [[
             Paragraph("<b>Done</b>", small),
-            Paragraph("<b>Check / Source</b>", small),
+            Paragraph("<b>Paddock</b>", small),
             Paragraph("<b>To Do / Recommendation</b>", small),
         ]]
         for item in todo_items:

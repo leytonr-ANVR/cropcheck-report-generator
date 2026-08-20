@@ -157,3 +157,10 @@ To Do extraction fix:
 - Handles headings on one line with the action on the next line.
 - Direct actions such as Spread, Monitor, Recheck, Apply, Spray, Irrigate and Follow up are also captured.
 - Measurements and descriptive crop notes remain excluded.
+
+To Do paddock source update:
+- The To Do Summary now uses the paddock name instead of the uploaded PDF filename where a reliable match can be made.
+- Actions are matched back to each paddock's Other observations text.
+- Shared recommendations can show multiple paddock names.
+- The uploaded filename is used only as a fallback if the paddock cannot be determined reliably.
+- The PDF column heading is now `Paddock`.
