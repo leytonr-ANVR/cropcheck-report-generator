@@ -521,8 +521,85 @@ def parse_nodes(comments):
     return ""
 
 def parse_retention(comments):
-    m=re.search(r"(?:1st|first)\s+(?:pos|position)(?:ition)?\s+retention\s+(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)\s*%",comments,re.I)
-    return f"{m.group(1)}–{m.group(2)}%" if m else ""
+    """
+    Extract first-position retention even when 'retention' is misspelled.
+
+    Recognises common variants such as:
+      retention
+      retension
+      retantion
+      retenion
+      retentin
+      retetion
+      retentionn
+      retension
+
+    Also supports 1st position / first position wording when the percentage
+    is clearly associated with that field.
+    """
+    if not comments:
+        return ""
+
+    # Tolerant spelling pattern for retention.
+    retention_word = (
+        r"(?:retention|retension|retantion|retenion|retentin|retetion|"
+        r"retentionn|retension|retention)"
+    )
+
+    patterns = [
+        # "Retention 86-89%" and typo variants.
+        rf"\b{retention_word}\b\s*[:=-]?\s*(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)\s*%",
+        rf"\b{retention_word}\b\s*[:=-]?\s*(\d+(?:\.\d+)?)\s*%",
+
+        # "1st position retention 86-89%" including typo variants.
+        rf"\b(?:1st|first)\s+(?:pos(?:ition)?)\s+{retention_word}\b\s*[:=-]?\s*(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)\s*%",
+        rf"\b(?:1st|first)\s+(?:pos(?:ition)?)\s+{retention_word}\b\s*[:=-]?\s*(\d+(?:\.\d+)?)\s*%",
+
+        # "1st position 86-89%" even if the word retention is missing/badly corrupted.
+        r"\b(?:1st|first)\s+(?:pos(?:ition)?)\s*[:=-]?\s*(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)\s*%",
+        r"\b(?:1st|first)\s+(?:pos(?:ition)?)\s*[:=-]?\s*(\d+(?:\.\d+)?)\s*%",
+    ]
+
+    for pat in patterns:
+        m = re.search(pat, comments, flags=re.I)
+        if not m:
+            continue
+        if m.lastindex == 2:
+            return f"{m.group(1)}–{m.group(2)}%"
+        return f"{m.group(1)}%"
+
+    # Final fuzzy fallback: find a word resembling "retention" immediately
+    # followed by a percentage. This catches minor OCR/spelling errors without
+    # treating unrelated percentages as retention.
+    for m in re.finditer(
+        r"\b([A-Za-z]{7,12})\b\s*[:=-]?\s*"
+        r"(\d+(?:\.\d+)?)(?:\s*[-–]\s*(\d+(?:\.\d+)?))?\s*%",
+        comments,
+        flags=re.I,
+    ):
+        word = m.group(1).lower()
+
+        # Small Levenshtein-distance helper.
+        target = "retention"
+        prev = list(range(len(target) + 1))
+        for ch in word:
+            curr = [prev[0] + 1]
+            for j, tch in enumerate(target, 1):
+                curr.append(min(
+                    curr[-1] + 1,
+                    prev[j] + 1,
+                    prev[j - 1] + (ch != tch),
+                ))
+            prev = curr
+        distance = prev[-1]
+
+        if distance <= 2:
+            if m.group(3):
+                return f"{m.group(2)}–{m.group(3)}%"
+            return f"{m.group(2)}%"
+
+    return ""
+
 
 def parse_nawf(comments):
     """
@@ -732,7 +809,7 @@ def extract_todo_recommendations(text):
     # but require an action verb and a meaningful object/timing.
     direct_action = re.compile(
         r"^\s*(monitor|recheck|check|review|apply|spray|irrigate|water|"
-        r"follow\s*up|inspect|watch|consider|organise|arrange|sample|"
+        r"follow\s*up|inspect|watch|consider|organise|arrange|sample|spread|"
         r"treat|control)\b\s+(.+)$",
         re.I,
     )
@@ -782,7 +859,7 @@ def extract_todo_recommendations(text):
         action_verbs = re.compile(
             r"\b(?:monitor|recheck|check|review|apply|spray|irrigat(?:e|ion)|"
             r"water|follow\s*up|inspect|watch|consider|organise|arrange|"
-            r"sample|treat|control|use|add|increase|reduce|wait|hold|"
+            r"sample|treat|control|spread|use|add|increase|reduce|wait|hold|"
             r"target|schedule|return|keep|leave|run|put|go)\b",
             re.I,
         )

@@ -143,3 +143,9 @@ Relevant To Do actions fix:
 - Empty Recommendation/Will Suggest headings no longer pull unrelated table data into the To Do list.
 - Direct actions such as Monitor, Recheck, Apply, Spray, Irrigate, Review and Follow up are supported.
 - Duplicate actions are removed.
+
+Retention typo support:
+- Retention data is now captured even when `retention` has common spelling/OCR errors.
+- Supports variants such as Retension, Retantion, Retenion, Retentin and Retetion.
+- A fuzzy fallback accepts minor spelling errors within two character edits of `retention`.
+- `1st position` or `First position` followed directly by a percentage is also recognised.
