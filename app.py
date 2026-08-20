@@ -20,14 +20,14 @@ LOGO_PATH = APP_DIR / "assets" / "agnvet_rural_logo.png"
 
 COLUMNS = ["Location","Paddock","Variety","Area (ha)","First Position Retention","NAWF","Insect observations","Other observations"]
 SAMPLE_ROWS = [
-    ["Woodbine", "WB P1", "Siokra 253B3XF", 18.22, "86–89%", "7.0", "1 MN / 20 m beat sheet", "Good growth; clean for weeds"],
-    ["Donview", "P34 #02", "CSX1320B3XF", 1.50, "89–91%", "5.9–6.7", "5 MN / 20 m beat sheet", "P34 combined inspection; Roundup spray noted as ordinary"],
-    ["Donview", "P34 #03", "Sicot 606B3F", 3.22, "89–91%*", "5.9–6.7*", "5 MN*", "P34 combined inspection"],
-    ["Donview", "P34 #04", "Sicot 619B3XF", 1.63, "89–91%*", "5.9–6.7*", "5 MN*", "P34 combined inspection"],
-    ["Donview", "P34 #05", "Sicot 606B3F", 13.37, "89–91%*", "5.9–6.7*", "5 MN*", "P34 combined inspection"],
-    ["Donview", "VP2", "Sicot 606B3F", 11.97, "85–86%", "6.2–6.8", "2 MN / 20 m beat sheet", "Some small boll loss; good plant height in areas"],
-    ["Kearneys", "CP1", "Sicot 606B3F", 20.38, "86–88%", "5.4–5.5", "1 MA / 20 m beat sheet", "Eastern side getting leggy; bellvine present"],
-    ["Kearneys", "KP1", "Sicot 606B3F", 28.10, "79–81%", "5.5–6.0", "1 CS + 1 GVBN / 20 m beat sheet", "Early bottom fruit loss in places; newer positions compensating"],
+    ["Woodbine", "WB P1", "Siokra 253B3XF", 18.22, "86–89%", "7.0", "1 MN / 20 m beat sheet; Per metre: MN: 0.05/m", "Good growth; clean for weeds"],
+    ["Donview", "P34 #02", "CSX1320B3XF", 1.50, "89–91%", "5.9–6.7", "5 MN / 20 m beat sheet; Per metre: MN: 0.25/m", "P34 combined inspection; Roundup spray noted as ordinary"],
+    ["Donview", "P34 #03", "Sicot 606B3F", 3.22, "89–91%*", "5.9–6.7*", "5 MN*; Per metre: MN: 0.25/m", "P34 combined inspection"],
+    ["Donview", "P34 #04", "Sicot 619B3XF", 1.63, "89–91%*", "5.9–6.7*", "5 MN*; Per metre: MN: 0.25/m", "P34 combined inspection"],
+    ["Donview", "P34 #05", "Sicot 606B3F", 13.37, "89–91%*", "5.9–6.7*", "5 MN*; Per metre: MN: 0.25/m", "P34 combined inspection"],
+    ["Donview", "VP2", "Sicot 606B3F", 11.97, "85–86%", "6.2–6.8", "2 MN / 20 m beat sheet; Per metre: MN: 0.1/m", "Some small boll loss; good plant height in areas"],
+    ["Kearneys", "CP1", "Sicot 606B3F", 20.38, "86–88%", "5.4–5.5", "1 MA / 20 m beat sheet; Per metre: MA: 0.05/m", "Eastern side getting leggy; bellvine present"],
+    ["Kearneys", "KP1", "Sicot 606B3F", 28.10, "79–81%", "5.5–6.0", "1 CS + 1 GVBN / 20 m beat sheet; Per metre: CS: 0.05/m; GVBN: 0.05/m", "Early bottom fruit loss in places; newer positions compensating"],
 ]
 DEFAULT_ASSESSMENT = ("Cotton crops were generally progressing well. First-position retention ranged from 79–91%. KP1 recorded the lowest retention range and had early bottom fruit loss in places. Continued monitoring of fruit retention, crop maturity, weed control and insect activity is recommended.")
 DEFAULT_RECOMMENDATIONS = ("1. Continue monitoring paddocks with lower first-position retention.\n2. Monitor boll loss and changes in NAWF at subsequent CropChecks.\n3. Follow up weed control where weeds remain present.\n4. Continue monitoring insect levels and crop maturity.")
@@ -348,7 +348,7 @@ with right:
     st.markdown("### 💡 Recommendations"); recommendations=st.text_area("Recommendations",value=st.session_state.recommendations,height=180,label_visibility="collapsed"); st.session_state.recommendations=recommendations
 
 st.markdown("### 📄 Generate Report")
-st.caption("The generated report includes the AGnVET Rural logo, editable paddock data, total hectares, assessment and recommendations.")
+st.caption("The generated report includes the AGnVET Rural logo, editable paddock data, NAWF, NACB, insect observations, Aphids, WF, insects per metre, total hectares, assessment and recommendations.")
 if not edited.empty:
     pdf=create_pdf(edited,grower,advisor,observation,inspection_date,assessment,recommendations)
     b1,b2=st.columns(2)
