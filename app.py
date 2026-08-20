@@ -515,63 +515,127 @@ if "assessment" not in st.session_state: st.session_state.assessment=DEFAULT_ASS
 if "recommendations" not in st.session_state: st.session_state.recommendations=DEFAULT_RECOMMENDATIONS
 if "uploaded_names" not in st.session_state: st.session_state.uploaded_names=[]
 
-logo64=logo_base64(); logo_html=f'<img src="data:image/png;base64,{logo64}" style="height:76px;background:white;padding:4px 8px;border-radius:8px;">' if logo64 else ""
-st.markdown(f'<div class="hero"><div style="display:flex;align-items:center;justify-content:space-between;gap:18px;"><div><h1>🌱 CropCheck Report Generator</h1><p>Upload • Analyse • Edit • Generate professional reports</p></div><div>{logo_html}</div></div></div>',unsafe_allow_html=True)
 
-with st.sidebar:
-    if LOGO_PATH.exists(): st.image(str(LOGO_PATH),use_container_width=True)
-    st.header("Upload PDF Reports")
-    st.caption("Upload one or more Agworld CropCheck PDFs. Cotton paddock data will be extracted automatically, including beat-sheet insect counts converted to insects per metre.")
-    uploads=st.file_uploader("Choose CropCheck PDF files",type=["pdf"],accept_multiple_files=True)
+logo64 = logo_base64()
+logo_html = f'<img class="top-logo" src="data:image/png;base64,{logo64}">' if logo64 else ""
+
+st.markdown("<style>\
+:root{--navy:#062f61;--navy2:#0b4a84;--green:#0b8d47;--border:#d7e4ef;--greenbg:#effaf1;--bluebg:#eef6fd;}\
+.stApp{background:#fff}.block-container{max-width:1600px;padding:0 14px 18px}header[data-testid='stHeader']{display:none}#MainMenu,footer{visibility:hidden}\
+.topbar{margin:0 -14px 16px;background:linear-gradient(100deg,#062e60,#073e79);min-height:100px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.12)}\
+.top-title{font-size:2rem;font-weight:800}.top-sub{font-size:1rem;margin-top:6px}.top-logo{height:76px;background:#fff;padding:6px 10px;border-radius:6px}\
+.panel,.table-shell,.report-card{border:1px solid var(--border);background:#fff;border-radius:12px;padding:14px;box-shadow:0 1px 6px rgba(7,48,92,.04);margin-bottom:12px}\
+.panel-title,.card-head,.section-title{color:var(--navy);font-size:1.08rem;font-weight:800;margin-bottom:10px}.upload-hero{text-align:center}.upload-icon{font-size:2.4rem}.smalltext{font-size:.82rem;color:#52697e;line-height:1.35}\
+.navbox{border:1px solid var(--border);border-radius:12px;overflow:hidden;background:#fff;margin-top:12px}.navitem{padding:11px 14px;font-weight:650;color:#12365e;display:flex;gap:10px;border-bottom:1px solid #edf2f6}.navitem.active{background:linear-gradient(90deg,#06336b,#0b4b85);color:#fff}\
+.successbox{background:#effaf1;border:1px solid #bfe8c8;color:#16632f;border-radius:9px;padding:10px 12px;font-size:.82rem;margin-top:10px}.green-card{background:var(--greenbg);border:1px solid #cce8d2;border-radius:11px;padding:12px 14px;margin-bottom:12px}.blue-card{background:var(--bluebg);border:1px solid #cbdff2;border-radius:11px;padding:12px 14px;margin-bottom:12px}\
+.metric-wrap{border:1px solid #cce8d2;background:#f3fff5;border-radius:11px;padding:8px}.stTextInput input,.stTextArea textarea{border:1px solid #ccd9e5!important;border-radius:6px!important;background:#fff!important}[data-testid='stFileUploader']{border:1px dashed #80a9d0;border-radius:10px;padding:8px;background:#fff}[data-testid='stDataFrame']{border:1px solid var(--border);border-radius:9px;overflow:hidden}\
+div[data-testid='stMetric']{background:transparent;border:none;padding:7px 8px;text-align:center}div[data-testid='stMetricValue']{font-size:1.45rem!important;font-weight:800!important;color:#111!important}div[data-testid='stMetricLabel']{justify-content:center;font-size:.8rem!important}.stDownloadButton>button{background:#06366e!important;color:#fff!important;border:0!important;border-radius:7px!important;font-weight:750!important}.stButton>button{border-radius:7px!important;font-weight:750!important}.preview-shell{border:1px solid var(--border);border-radius:10px;background:#fff;padding:8px}\
+</style>", unsafe_allow_html=True)
+
+st.markdown(f"<div class='topbar'><div><div class='top-title'>☁ CropCheck Report Generator</div><div class='top-sub'>Upload • Analyse • Generate Professional Reports</div></div><div>{logo_html}</div></div>", unsafe_allow_html=True)
+
+left_col, center_col, right_col = st.columns([1.0, 3.1, 1.2], gap="medium")
+
+with left_col:
+    st.markdown("<div class='panel upload-hero'><div class='upload-icon'>☁️</div><div class='panel-title'>Upload PDF Report</div><div class='smalltext'>Upload your CropCheck PDF reports to extract and manage the data.</div></div>", unsafe_allow_html=True)
+    uploads = st.file_uploader("Drag and drop PDF files here or click to browse", type=["pdf"], accept_multiple_files=True)
     if uploads:
-        names=[u.name for u in uploads]
-        if names != st.session_state.uploaded_names:
-            with st.spinner("Reading CropCheck PDFs…"): parsed,metas=merge_uploaded_reports(uploads)
-            if parsed.empty: st.error("I couldn't find cotton paddock rows in the uploaded PDF(s). You can still enter data manually.")
+        upload_names = [u.name for u in uploads]
+        if upload_names != st.session_state.uploaded_names:
+            with st.spinner("Reading CropCheck PDFs…"):
+                parsed_df, metas, comments = merge_uploaded_reports(uploads)
+            if parsed_df.empty:
+                st.error("No cotton paddock rows were found in the uploaded PDF(s).")
             else:
-                st.session_state.crop_data=parsed; st.session_state.uploaded_names=names; st.session_state.assessment=auto_assessment(parsed); st.session_state.recommendations=auto_recommendations(parsed)
-                first=next((m for m in metas if m.get("grower") or m.get("date")),{})
-                if first.get("grower"): st.session_state.grower_value=first["grower"]
-                if first.get("date"): st.session_state.date_value=first["date"]
-                if first.get("observation"): st.session_state.obs_value=first["observation"]
-                st.success(f"Loaded {len(parsed)} cotton paddock entries.")
-    if st.button("Load example cotton data",use_container_width=True):
-        st.session_state.crop_data=pd.DataFrame(SAMPLE_ROWS,columns=COLUMNS); st.session_state.assessment=DEFAULT_ASSESSMENT; st.session_state.recommendations=DEFAULT_RECOMMENDATIONS; st.session_state.uploaded_names=[]; st.rerun()
-    st.divider(); st.markdown("**Uploaded reports**")
+                st.session_state.crop_data = parsed_df
+                st.session_state.uploaded_names = upload_names
+                st.session_state.assessment = auto_assessment(parsed_df)
+                st.session_state.recommendations = auto_recommendations(parsed_df)
+                first_meta = next((m for m in metas if m.get("grower") or m.get("date")), {})
+                if first_meta.get("grower"): st.session_state["grower_field"] = first_meta["grower"]
+                if first_meta.get("date"): st.session_state["date_field"] = first_meta["date"]
+                if first_meta.get("observation"): st.session_state["obs_field"] = first_meta["observation"]
+                st.rerun()
+    st.markdown("<div class='panel-title' style='font-size:.9rem;margin-top:8px'>Uploaded Reports</div>", unsafe_allow_html=True)
     if st.session_state.uploaded_names:
-        for n in st.session_state.uploaded_names: st.write("📄",n)
-    else: st.caption("No PDFs uploaded yet.")
+        for name in st.session_state.uploaded_names:
+            st.markdown(f"<div class='smalltext' style='padding:6px 2px;border-bottom:1px solid #edf2f6'>📄 {name}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='successbox'>✓ Reports uploaded successfully!<br>{len(st.session_state.uploaded_names)} report(s) processed.</div>", unsafe_allow_html=True)
+    else:
+        st.caption("No reports uploaded yet.")
+    st.markdown("<div class='navbox'><div class='navitem active'>⌂ Dashboard</div><div class='navitem'>▣ Paddock Data</div><div class='navitem'>◒ Crop Assessment</div><div class='navitem'>💡 Recommendations</div><div class='navitem'>📄 Generate Report</div></div>", unsafe_allow_html=True)
+    if st.button("Load example cotton data", use_container_width=True):
+        st.session_state.crop_data = pd.DataFrame(SAMPLE_ROWS, columns=COLUMNS)
+        st.session_state.assessment = DEFAULT_ASSESSMENT
+        st.session_state.recommendations = DEFAULT_RECOMMENDATIONS
+        st.session_state.uploaded_names = []
+        st.rerun()
 
-top_left,top_right=st.columns([2.25,1],gap="large")
-with top_right:
-    st.markdown("### ⚙️ Report Details")
-    grower=st.text_input("Grower",value=st.session_state.get("grower_value","Luck Farming P/L"))
-    advisor=st.text_input("Advisor",value="AGnVET Rural – Biloela")
-    observation=st.text_input("Observation",value=st.session_state.get("obs_value","20–22n"))
-    inspection_date=st.text_input("Inspection Date",value=st.session_state.get("date_value","6 February 2026"))
-with top_left:
-    df=st.session_state.crop_data; total=pd.to_numeric(df["Area (ha)"],errors="coerce").fillna(0).sum(); lo,hi=retention_bounds(df)
-    st.markdown("### 📊 Report Summary")
-    a,b,c,d=st.columns(4); a.metric("Total Cotton Area",f"{total:.2f} ha"); b.metric("Paddocks",len(df)); c.metric("Highest Retention",f"{hi:g}%" if hi is not None else "—"); d.metric("Lowest Retention",f"{lo:g}%" if lo is not None else "—")
+with center_col:
+    df = st.session_state.crop_data
+    total_area = pd.to_numeric(df["Area (ha)"], errors="coerce").fillna(0).sum()
+    low_ret, high_ret = retention_bounds(df)
+    st.markdown("<div class='panel'><div class='panel-title'>▥ Report Summary</div><div class='metric-wrap'>", unsafe_allow_html=True)
+    a,b,c,d = st.columns(4)
+    a.metric("Total Cotton Area", f"{total_area:.2f} ha")
+    b.metric("Paddocks", len(df))
+    c.metric("Highest Retention", f"{high_ret:g}%" if high_ret is not None else "—")
+    d.metric("Lowest Retention", f"{low_ret:g}%" if low_ret is not None else "—")
+    st.markdown("</div></div>", unsafe_allow_html=True)
 
-st.markdown('<div class="dash-card"><h3>🧰 &nbsp;Cotton Paddocks</h3>', unsafe_allow_html=True)
-edited=st.data_editor(st.session_state.crop_data,num_rows="dynamic",use_container_width=True,hide_index=True,column_config={"Area (ha)":st.column_config.NumberColumn("Area (ha)",min_value=0.0,step=0.01,format="%.2f"),"First Position Retention":st.column_config.TextColumn("Retention (%)"),"Insect observations":st.column_config.TextColumn("Insects",width="medium"),"Other observations":st.column_config.TextColumn("Other observations",width="large")})
-st.session_state.crop_data=edited
+    st.markdown("<div class='table-shell'><div class='panel-title'>🧰 Cotton Paddocks</div>", unsafe_allow_html=True)
+    edited = st.data_editor(
+        st.session_state.crop_data, num_rows="dynamic", use_container_width=True, hide_index=True, height=510,
+        column_config={
+            "Location": st.column_config.TextColumn("Location", width="small"),
+            "Paddock": st.column_config.TextColumn("Paddock", width="small"),
+            "Variety": st.column_config.TextColumn("Variety", width="medium"),
+            "Area (ha)": st.column_config.NumberColumn("Area (ha)", min_value=0.0, step=0.01, format="%.2f", width="small"),
+            "First Position Retention": st.column_config.TextColumn("Retention (%)", width="small"),
+            "NAWF": st.column_config.TextColumn("NAWF", width="small"),
+            "NACB": st.column_config.TextColumn("NACB", width="small"),
+            "Insect observations": st.column_config.TextColumn("Insect Observations (Per metre)", width="large"),
+            "Other observations": st.column_config.TextColumn("Notes", width="medium"),
+        },
+        key="crop_editor_photo"
+    )
+    st.session_state.crop_data = edited
+    st.markdown("</div>", unsafe_allow_html=True)
 
-left,right=st.columns([1.45,1],gap="large")
-with left:
-    st.markdown("### 🌿 Crop Assessment"); assessment=st.text_area("Overall assessment",value=st.session_state.assessment,height=180,label_visibility="collapsed"); st.session_state.assessment=assessment
-with right:
-    st.markdown("### 💡 Recommendations"); recommendations=st.text_area("Recommendations",value=st.session_state.recommendations,height=180,label_visibility="collapsed"); st.session_state.recommendations=recommendations
+    st.markdown("<div class='report-card'><div class='card-head'>📄 Upload and Generate Report</div><div class='smalltext'>Once your PDF reports are uploaded, the app automatically extracts the data. You can edit or add notes, then generate a professional PDF report with the AGnVET Rural logo.</div></div>", unsafe_allow_html=True)
+    st.markdown("<div class='section-title'>Crop Assessment</div>", unsafe_allow_html=True)
+    assessment = st.text_area("Overall assessment", value=st.session_state.assessment, height=125, label_visibility="collapsed")
+    st.session_state.assessment = assessment
+    st.markdown("<div class='section-title'>Recommendations</div>", unsafe_allow_html=True)
+    recommendations = st.text_area("Recommendations", value=st.session_state.recommendations, height=125, label_visibility="collapsed")
+    st.session_state.recommendations = recommendations
 
-st.markdown("### 📄 Generate Report")
-st.caption("The generated report includes the AGnVET Rural logo, editable paddock data, NAWF, NACB, insect observations, Aphids, WF, insects per metre, total hectares, assessment and recommendations.")
-if not edited.empty:
-    pdf=create_pdf(edited,grower,advisor,observation,inspection_date,assessment,recommendations)
-    b1,b2=st.columns(2)
-    with b1: st.download_button("⬇️ Download PDF Report",data=pdf,file_name="CropCheck_Consolidated_Cotton_Report.pdf",mime="application/pdf",use_container_width=True,type="primary")
-    with b2: show=st.toggle("Show report preview",value=False)
-    if show: preview_pdf(pdf)
-else: st.info("Upload a CropCheck PDF or add paddock rows to generate a report.")
+with right_col:
+    st.markdown("<div class='report-card'><div class='card-head'>⚙ Report Details</div>", unsafe_allow_html=True)
+    grower = st.text_input("Grower", value=st.session_state.get("grower_field","Luck Farming P/L"), key="grower_photo")
+    advisor = st.text_input("Advisor", value="AGnVET Rural – Biloela", key="advisor_photo")
+    observation = st.text_input("Observation", value=st.session_state.get("obs_field","20–22n"), key="obs_photo")
+    inspection_date = st.text_input("Inspection Date", value=st.session_state.get("date_field","6 February 2026"), key="date_photo")
+    st.markdown("</div>", unsafe_allow_html=True)
 
-st.caption("PDF extraction is designed for the Agworld CropCheck layout used in the supplied reports. Always review the extracted table before issuing the final report.")
+    st.markdown("<div class='green-card'><div class='card-head' style='color:#16652e'>🌿 Key Observations</div>", unsafe_allow_html=True)
+    items = []
+    for _, row in st.session_state.crop_data.iterrows():
+        note = str(row.get("Other observations","")).strip()
+        if note and note.lower() not in ("nan","none"):
+            items.append(f"<li><b>{row.get('Paddock','')}</b> – {note}</li>")
+        if len(items) >= 4: break
+    if not items: items = ["<li>No key observations extracted yet.</li>"]
+    st.markdown("<ul style='padding-left:18px;margin:0'>" + "".join(items) + "</ul></div>", unsafe_allow_html=True)
+
+    st.markdown("<div class='blue-card'><div class='card-head'>💡 Recommendations</div>", unsafe_allow_html=True)
+    rec_lines = [re.sub(r"^\d+\.\s*","",line).strip() for line in st.session_state.recommendations.splitlines() if line.strip()]
+    st.markdown("<ul style='padding-left:18px;margin:0'>" + "".join(f"<li>{r}</li>" for r in rec_lines[:5]) + "</ul></div>", unsafe_allow_html=True)
+
+    pdf_bytes = create_pdf(st.session_state.crop_data, grower, advisor, observation, inspection_date, st.session_state.assessment, st.session_state.recommendations)
+    st.markdown("<div class='preview-shell'><div class='card-head'>Report Preview</div>", unsafe_allow_html=True)
+    preview_pdf(pdf_bytes)
+    st.markdown("</div>", unsafe_allow_html=True)
+    st.download_button("⬇ Download PDF Report", data=pdf_bytes, file_name="CropCheck_Consolidated_Cotton_Report.pdf", mime="application/pdf", use_container_width=True)
+
+st.caption("PDF extraction is designed for the Agworld CropCheck layout used in the supplied reports. Review extracted figures before issuing the final report.")
