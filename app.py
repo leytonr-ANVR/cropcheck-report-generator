@@ -696,52 +696,134 @@ def extract_other_observations(comments):
 
 def extract_todo_recommendations(text):
     """
-    Extract action items from each CropCheck check.
-    Prioritises wording such as:
-      Will suggest ...
-      Recommend ...
-      Recommended ...
-      Recommendation ...
-      Suggest ...
-      Suggested ...
-    Returns a de-duplicated list without inventing new actions.
+    Extract only genuine, actionable recommendations from a CropCheck report.
+
+    Included:
+      Will suggest Pix application
+      Recommend irrigating in 5 days
+      Suggest checking aphids next inspection
+      Monitor whitefly levels
+      Recheck in 7 days
+
+    Excluded:
+      observations, crop measurements, historical actions, descriptive notes,
+      empty recommendation headings, and report/table text accidentally captured
+      after a recommendation heading.
     """
     if not text:
         return []
 
-    cleaned = re.sub(r"\s+", " ", str(text)).strip()
+    # Keep line structure because recommendations in CropCheck PDFs are normally
+    # much safer to extract line-by-line than as one flattened document.
+    raw_lines = [re.sub(r"\s+", " ", ln).strip() for ln in str(text).splitlines()]
+    lines = [ln for ln in raw_lines if ln]
+
+    trigger = re.compile(
+        r"^\s*(?:"
+        r"will\s+suggest|"
+        r"recommend(?:ed|ation|ations)?|"
+        r"suggest(?:ed|ion|ions)?|"
+        r"will\s+recommend"
+        r")\s*[:\-–]?\s*(.*)$",
+        re.I,
+    )
+
+    # These may be useful actions even without a Recommendation heading,
+    # but require an action verb and a meaningful object/timing.
+    direct_action = re.compile(
+        r"^\s*(monitor|recheck|check|review|apply|spray|irrigate|water|"
+        r"follow\s*up|inspect|watch|consider|organise|arrange|sample|"
+        r"treat|control)\b\s+(.+)$",
+        re.I,
+    )
+
+    # Common report fields / measurements that indicate extraction has wandered
+    # out of the recommendation section.
+    field_boundary = re.compile(
+        r"^(?:grower|farm|location|paddock|variety|area|date|observation|"
+        r"inspection|nodes?|node\s*count|first\s+position|1st\s+pos|"
+        r"retention|nawf|nacb|bolls?\s*/?\s*m|squares?\s*/?\s*m|"
+        r"insect|beat\s+sheet|aphids?|whitefly|wf|comments?|notes?)\s*[:\-]",
+        re.I,
+    )
+
+    # Descriptive/non-action wording.
+    non_action = re.compile(
+        r"^(?:nil|none|n/?a|no\s+recommendation|no\s+action|"
+        r"good|crop\s+is|crop\s+looks|plants?\s+are|currently|"
+        r"found|noted|observed|has|had|there\s+(?:is|are)|"
+        r"\d+(?:\.\d+)?\s*(?:%|nawf|nacb|b/m|s/m))\b",
+        re.I,
+    )
+
+    def clean_action(value):
+        value = re.sub(r"\s+", " ", value or "").strip(" \t.;,:-–")
+        # Stop if flattened table/report fields have been appended.
+        value = re.split(
+            r"\s+(?=(?:Grower|Farm|Location|Paddock|Variety|Area|Date|"
+            r"Observation|Inspection|Nodes?|First Position|1st Pos|Retention|"
+            r"NAWF|NACB|Bolls?\s*/?\s*m|Squares?\s*/?\s*m|Insect|"
+            r"Beat Sheet|Comments?|Notes?)\s*[:\-])",
+            value,
+            maxsplit=1,
+            flags=re.I,
+        )[0].strip(" .;,:-–")
+        return value
+
+    def is_relevant_action(value):
+        if not value or len(value) < 4:
+            return False
+        if field_boundary.search(value):
+            return False
+        if non_action.search(value):
+            return False
+
+        # A genuine action should normally contain an action verb.
+        action_verbs = re.compile(
+            r"\b(?:monitor|recheck|check|review|apply|spray|irrigat(?:e|ion)|"
+            r"water|follow\s*up|inspect|watch|consider|organise|arrange|"
+            r"sample|treat|control|use|add|increase|reduce|wait|hold|"
+            r"target|schedule|return|keep|leave|run|put|go)\b",
+            re.I,
+        )
+        return bool(action_verbs.search(value))
+
     items = []
 
-    patterns = [
-        r"\bwill\s+suggest\b\s*[:\-]?\s*(.+?)(?=(?:\bwill\s+suggest\b|\brecommend(?:ed|ation|ations)?\b|\bsuggest(?:ed|ion|ions)?\b|$))",
-        r"\brecommend(?:ed|ation|ations)?\b\s*[:\-]?\s*(.+?)(?=(?:\bwill\s+suggest\b|\brecommend(?:ed|ation|ations)?\b|\bsuggest(?:ed|ion|ions)?\b|$))",
-        r"\bsuggest(?:ed|ion|ions)?\b\s*[:\-]?\s*(.+?)(?=(?:\bwill\s+suggest\b|\brecommend(?:ed|ation|ations)?\b|\bsuggest(?:ed|ion|ions)?\b|$))",
-    ]
+    for i, line in enumerate(lines):
+        m = trigger.match(line)
+        if m:
+            action = clean_action(m.group(1))
 
-    for pat in patterns:
-        for match in re.finditer(pat, cleaned, flags=re.I):
-            item = match.group(1).strip(" .;:-")
-            # Keep the extracted action concise but complete.
-            if item:
-                # Stop at common report-field boundaries if they appear.
-                item = re.split(
-                    r"\b(?:1st\s+pos(?:ition)?|NAWF|NACB|beat\s+sheet|variety|area|paddock|location)\b",
-                    item,
-                    maxsplit=1,
-                    flags=re.I,
-                )[0].strip(" .;:-")
-            if item and len(item) >= 3:
-                items.append(item)
+            # If heading and action are on separate lines, inspect only the next
+            # line, and only accept it when it looks genuinely actionable.
+            if not action and i + 1 < len(lines):
+                candidate = clean_action(lines[i + 1])
+                if not field_boundary.search(candidate):
+                    action = candidate
 
-    # Preserve order while removing duplicates.
-    seen = set()
+            if is_relevant_action(action):
+                items.append(action)
+            continue
+
+        # Direct action lines are accepted only when they start with a clear verb.
+        m = direct_action.match(line)
+        if m:
+            action = clean_action(line)
+            if is_relevant_action(action):
+                items.append(action)
+
+    # Preserve report order and remove duplicates.
     result = []
+    seen = set()
     for item in items:
-        key = item.lower()
-        if key not in seen:
+        key = re.sub(r"\W+", " ", item.lower()).strip()
+        if key and key not in seen:
             seen.add(key)
             result.append(item)
+
     return result
+
 
 def parse_cropcheck_pdf(file_bytes, filename):
     reader=PdfReader(io.BytesIO(file_bytes))

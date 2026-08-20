@@ -134,3 +134,12 @@ Boll metrics update:
 - Dashboard now shows Low Bolls / m, Average Bolls / m and High Bolls / m when data is present.
 - PDF Dashboard Measurements includes the same three boll metrics when present.
 - For a range like 10–14, low=10, high=14, average contribution=12.
+
+
+Relevant To Do actions fix:
+- Recommendation extraction is now line-based instead of flattening the whole PDF.
+- Only genuine actionable recommendations are added to the To Do page.
+- Measurements, observations, descriptive crop notes and report fields are excluded.
+- Empty Recommendation/Will Suggest headings no longer pull unrelated table data into the To Do list.
+- Direct actions such as Monitor, Recheck, Apply, Spray, Irrigate, Review and Follow up are supported.
+- Duplicate actions are removed.
