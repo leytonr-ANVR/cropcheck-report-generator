@@ -349,12 +349,13 @@ def parse_insects(comments):
     """
     Extract insect observations including:
     - beat-sheet counts and insects per metre
-    - Aphid counts
-    - WF / Whitefly counts
-    - Aphid percentages
-    - WF / Whitefly percentages
+    - Single Aphid counts / percentages
+    - Cluster Aphid counts / percentages
+    - WF / Whitefly counts / percentages
 
-    Percentages are only added when they are explicitly present in the source text.
+    Single Aphids and Cluster Aphids are reported separately when the source text
+    distinguishes them. Generic aphid values are kept as 'Aphids' only when the
+    source does not specify single vs cluster.
     """
     observations = []
 
@@ -374,19 +375,82 @@ def parse_insects(comments):
             if per_metre:
                 observations.append("Per metre: " + "; ".join(per_metre))
 
-    # Aphid count
-    aphid_count_patterns = [
-        r"\b(\d+(?:\.\d+)?)\s*(?:aphids?|aph)\b",
-        r"\baphids?\s*(?:count\s*)?[:=-]?\s*(\d+(?:\.\d+)?)\b",
-        r"\baph\s*[:=-]?\s*(\d+(?:\.\d+)?)\b",
+    # ----- Single aphids -----
+    single_count_patterns = [
+        r"\b(?:single|singles)\s+aphids?\s*(?:count\s*)?[:=-]?\s*(\d+(?:\.\d+)?)\b",
+        r"\b(\d+(?:\.\d+)?)\s+(?:single|singles)\s+aphids?\b",
+        r"\bsingle\s+aphid\s*(?:count\s*)?[:=-]?\s*(\d+(?:\.\d+)?)\b",
     ]
-    for pat in aphid_count_patterns:
+    for pat in single_count_patterns:
         m = re.search(pat, comments, flags=re.I)
         if m:
-            observations.append(f"Aphids: {m.group(1)}")
+            observations.append(f"Single Aphids: {m.group(1)}")
             break
 
-    # Whitefly / WF count
+    single_pct_patterns = [
+        r"\b(?:single|singles)\s+aphids?\s*(?:incidence|infestation|plants?|leaves?|count)?\s*[:=-]?\s*(\d+(?:\.\d+)?)\s*%",
+        r"\b(\d+(?:\.\d+)?)\s*%\s+(?:single|singles)\s+aphids?\b",
+    ]
+    for pat in single_pct_patterns:
+        m = re.search(pat, comments, flags=re.I)
+        if m:
+            observations.append(f"Single Aphids: {m.group(1)}%")
+            break
+
+    # ----- Cluster aphids -----
+    cluster_count_patterns = [
+        r"\b(?:cluster|clusters|clustered)\s+aphids?\s*(?:count\s*)?[:=-]?\s*(\d+(?:\.\d+)?)\b",
+        r"\b(\d+(?:\.\d+)?)\s+(?:cluster|clusters|clustered)\s+aphids?\b",
+        r"\baphid\s+clusters?\s*(?:count\s*)?[:=-]?\s*(\d+(?:\.\d+)?)\b",
+        r"\b(\d+(?:\.\d+)?)\s+aphid\s+clusters?\b",
+    ]
+    for pat in cluster_count_patterns:
+        m = re.search(pat, comments, flags=re.I)
+        if m:
+            observations.append(f"Cluster Aphids: {m.group(1)}")
+            break
+
+    cluster_pct_patterns = [
+        r"\b(?:cluster|clusters|clustered)\s+aphids?\s*(?:incidence|infestation|plants?|leaves?|count)?\s*[:=-]?\s*(\d+(?:\.\d+)?)\s*%",
+        r"\b(\d+(?:\.\d+)?)\s*%\s+(?:cluster|clusters|clustered)\s+aphids?\b",
+        r"\baphid\s+clusters?\s*[:=-]?\s*(\d+(?:\.\d+)?)\s*%",
+    ]
+    for pat in cluster_pct_patterns:
+        m = re.search(pat, comments, flags=re.I)
+        if m:
+            observations.append(f"Cluster Aphids: {m.group(1)}%")
+            break
+
+    # ----- Generic aphids -----
+    # Only use generic Aphids if the text does not identify single/cluster aphids.
+    has_specific_aphids = any(
+        item.startswith("Single Aphids:") or item.startswith("Cluster Aphids:")
+        for item in observations
+    )
+    if not has_specific_aphids:
+        aphid_count_patterns = [
+            r"\b(\d+(?:\.\d+)?)\s*(?:aphids?|aph)\b",
+            r"\baphids?\s*(?:count\s*)?[:=-]?\s*(\d+(?:\.\d+)?)\b",
+            r"\baph\s*[:=-]?\s*(\d+(?:\.\d+)?)\b",
+        ]
+        for pat in aphid_count_patterns:
+            m = re.search(pat, comments, flags=re.I)
+            if m:
+                observations.append(f"Aphids: {m.group(1)}")
+                break
+
+        aphid_pct_patterns = [
+            r"\baphids?\s*(?:incidence|infestation|plants?|leaves?|count)?\s*[:=-]?\s*(\d+(?:\.\d+)?)\s*%",
+            r"\b(\d+(?:\.\d+)?)\s*%\s*(?:aphids?|aphid\s+incidence|aphid\s+infestation)\b",
+            r"\baph\s*[:=-]?\s*(\d+(?:\.\d+)?)\s*%",
+        ]
+        for pat in aphid_pct_patterns:
+            m = re.search(pat, comments, flags=re.I)
+            if m:
+                observations.append(f"Aphids: {m.group(1)}%")
+                break
+
+    # ----- Whitefly / WF -----
     wf_count_patterns = [
         r"\b(\d+(?:\.\d+)?)\s*(?:WF|white\s*flies|whiteflies|whitefly)\b",
         r"\bWF\s*(?:count\s*)?[:=-]?\s*(\d+(?:\.\d+)?)\b",
@@ -399,19 +463,6 @@ def parse_insects(comments):
             observations.append(f"WF: {m.group(1)}")
             break
 
-    # Aphid percentage
-    aphid_pct_patterns = [
-        r"\baphids?\s*(?:incidence|infestation|plants?|leaves?|count)?\s*[:=-]?\s*(\d+(?:\.\d+)?)\s*%",
-        r"\b(\d+(?:\.\d+)?)\s*%\s*(?:aphids?|aphid\s+incidence|aphid\s+infestation)\b",
-        r"\baph\s*[:=-]?\s*(\d+(?:\.\d+)?)\s*%",
-    ]
-    for pat in aphid_pct_patterns:
-        m = re.search(pat, comments, flags=re.I)
-        if m:
-            observations.append(f"Aphids: {m.group(1)}%")
-            break
-
-    # Whitefly / WF percentage
     wf_pct_patterns = [
         r"\b(?:WF|white\s*fly|whitefly|whiteflies)\s*(?:incidence|infestation|plants?|leaves?|count)?\s*[:=-]?\s*(\d+(?:\.\d+)?)\s*%",
         r"\b(\d+(?:\.\d+)?)\s*%\s*(?:WF|white\s*fly|whitefly|whiteflies)\b",
@@ -429,42 +480,6 @@ def parse_insects(comments):
             observations.append(clean_comments(m.group(1)))
 
     return "; ".join(dict.fromkeys(o for o in observations if o))
-
-def parse_nodes(comments):
-    """
-    Extract cotton node count from common CropCheck notation:
-      20-22n
-      19–22 n
-      20n
-      Nodes 20-22
-      node count 20-22
-    Returns the numeric range/value without the trailing 'n'.
-    """
-    if not comments:
-        return ""
-
-    m = re.search(
-        r"\b(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)\s*n\b",
-        comments,
-        flags=re.I,
-    )
-    if m:
-        return f"{m.group(1)}–{m.group(2)}"
-
-    m = re.search(r"\b(\d+(?:\.\d+)?)\s*n\b", comments, flags=re.I)
-    if m:
-        return m.group(1)
-
-    m = re.search(
-        r"\b(?:nodes?|node\s*count)\s*[:=-]?\s*"
-        r"(\d+(?:\.\d+)?)(?:\s*[-–]\s*(\d+(?:\.\d+)?))?",
-        comments,
-        flags=re.I,
-    )
-    if m:
-        return f"{m.group(1)}–{m.group(2)}" if m.group(2) else m.group(1)
-
-    return ""
 
 def parse_retention(comments):
     m=re.search(r"(?:1st|first)\s+(?:pos|position)(?:ition)?\s+retention\s+(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)\s*%",comments,re.I)
@@ -831,7 +846,7 @@ with center_col:
             "NAWF": st.column_config.TextColumn("NAWF", width="small"),
             "NACB": st.column_config.TextColumn("NACB", width="small"),
             "Bolls / m": st.column_config.TextColumn("Bolls / m", width="small"),
-            "Insect observations": st.column_config.TextColumn("Insects / m / Aphids % / WF %", width="large"),
+            "Insect observations": st.column_config.TextColumn("Insects / m / Single Aphids / Cluster Aphids / WF", width="large"),
             "Other observations": st.column_config.TextColumn("Notes", width="medium"),
         },
         key="crop_editor_photo"

@@ -45,3 +45,10 @@ Nodes update:
 - Supports wording such as `Nodes 20-22` or `node count 20-22`.
 - Nodes automatically hide when no node data is present.
 - Nodes are included in the generated PDF only when data exists.
+
+
+Aphid reporting update:
+- Single Aphids and Cluster Aphids are now reported separately in Insect Observations.
+- Supports counts and percentages for each when explicitly stated in the CropCheck report.
+- Generic `Aphids` is only used when the source does not specify single vs cluster.
+- WF / Whitefly counts and percentages remain supported.
