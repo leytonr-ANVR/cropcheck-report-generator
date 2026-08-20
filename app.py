@@ -72,13 +72,109 @@ def lowest_retention_rows(df):
 def clean_comments(text):
     return re.sub(r"\s+"," ",text or "").strip()
 
+def _format_per_metre(value):
+    """Format per-metre values neatly without unnecessary trailing zeros."""
+    if abs(value - round(value)) < 1e-9:
+        return str(int(round(value)))
+    if value >= 1:
+        return f"{value:.2f}".rstrip("0").rstrip(".")
+    return f"{value:.3f}".rstrip("0").rstrip(".")
+
+def _calculate_beat_sheet_per_metre(count_text, metres):
+    """
+    Convert counts such as:
+      '5MN mostly 1st instar' -> 'MN: 0.25/m'
+      '1CS and 1GVBN'        -> 'CS: 0.05/m; GVBN: 0.05/m'
+      '2 MN'                 -> 'MN: 0.1/m'
+    Only clearly countable count + pest-code pairs are calculated.
+    """
+    if not metres or metres <= 0:
+        return []
+
+    # Pest names/codes can be compact (5MN) or spaced (5 MN).
+    # Avoid interpreting instar numbers or percentages as pest counts.
+    pairs = re.findall(
+        r"(?<![\d.])(\d+(?:\.\d+)?)\s*"
+        r"(MN|MA|CS|GVBN|mirids?|aphids?|aph|WF|white\s*flies|whiteflies|whitefly)"
+        r"\b",
+        count_text,
+        flags=re.I,
+    )
+
+    results = []
+    for raw_count, raw_pest in pairs:
+        count = float(raw_count)
+        pest = re.sub(r"\s+", "", raw_pest.upper())
+        pest_map = {
+            "MIRID": "MN",
+            "MIRIDS": "MN",
+            "APHID": "Aphids",
+            "APHIDS": "Aphids",
+            "APH": "Aphids",
+            "WHITEFLIES": "WF",
+            "WHITEFLY": "WF",
+        }
+        pest = pest_map.get(pest, pest)
+        per_m = count / float(metres)
+        results.append(f"{pest}: {_format_per_metre(per_m)}/m")
+
+    # Deduplicate in source order.
+    return list(dict.fromkeys(results))
+
 def parse_insects(comments):
-    m=re.search(r"20\s*m\s+beat\s+sheet\s+found\s+(.+?)(?:\.|1st\s+pos|1st\s+position|$)",comments,re.I)
+    """Extract insect counts and automatically calculate beat-sheet insects per metre."""
+    observations = []
+
+    # General beat-sheet count. Works with 20 m, 10m etc.
+    m = re.search(
+        r"(\d+(?:\.\d+)?)\s*m\s+beat\s+sheet\s+found\s+(.+?)"
+        r"(?:\.|1st\s+pos|1st\s+position|$)",
+        comments,
+        flags=re.I,
+    )
     if m:
-        v=clean_comments(m.group(1))
-        return f"{v} / 20 m beat sheet" if v else ""
-    m=re.search(r"found\s+([^\.]{1,45})",comments,re.I)
-    return clean_comments(m.group(1)) if m else ""
+        metres = float(m.group(1))
+        value = clean_comments(m.group(2))
+        if value:
+            metre_label = _format_per_metre(metres)
+            observations.append(f"{value} / {metre_label} m beat sheet")
+
+            per_metre = _calculate_beat_sheet_per_metre(value, metres)
+            if per_metre:
+                observations.append("Per metre: " + "; ".join(per_metre))
+
+    # Aphids: supports "3 aphids", "Aphids 3", "Aphid count 3", "3 Aph".
+    aphid_patterns = [
+        r"\b(\d+(?:\.\d+)?)\s*(?:aphids?|aph)\b",
+        r"\baphids?\s*(?:count\s*)?[:=-]?\s*(\d+(?:\.\d+)?)\b",
+        r"\baph\s*[:=-]?\s*(\d+(?:\.\d+)?)\b",
+    ]
+    for pat in aphid_patterns:
+        m = re.search(pat, comments, flags=re.I)
+        if m:
+            observations.append(f"Aphids: {m.group(1)}")
+            break
+
+    # Whitefly / WF counts.
+    wf_patterns = [
+        r"\b(\d+(?:\.\d+)?)\s*(?:WF|white\s*flies|whiteflies|whitefly)\b",
+        r"\bWF\s*(?:count\s*)?[:=-]?\s*(\d+(?:\.\d+)?)\b",
+        r"\bwhite\s*fly\s*(?:count\s*)?[:=-]?\s*(\d+(?:\.\d+)?)\b",
+        r"\bwhitefly\s*(?:count\s*)?[:=-]?\s*(\d+(?:\.\d+)?)\b",
+    ]
+    for pat in wf_patterns:
+        m = re.search(pat, comments, flags=re.I)
+        if m:
+            observations.append(f"WF: {m.group(1)}")
+            break
+
+    # Fallback when no structured insect observations were found.
+    if not observations:
+        m = re.search(r"found\s+([^\.]{1,45})", comments, flags=re.I)
+        if m:
+            observations.append(clean_comments(m.group(1)))
+
+    return "; ".join(dict.fromkeys(o for o in observations if o))
 
 def parse_retention(comments):
     m=re.search(r"(?:1st|first)\s+(?:pos|position)(?:ition)?\s+retention\s+(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)\s*%",comments,re.I)
@@ -98,6 +194,9 @@ def extract_other_observations(comments):
         r"(?:1st|first)\s+(?:pos|position)(?:ition)?\s+retention\s+\d+(?:\.\d+)?\s*[-–]\s*\d+(?:\.\d+)?\s*%\.?",
         r"\d+(?:\.\d+)?\s*[-–]\s*\d+(?:\.\d+)?\s*NAWF[^\.]*\.?",
         r"\d+(?:\.\d+)?\s*NAWF[^\.]*\.?",
+        r"\d+(?:\.\d+)?\s*[-–]\s*\d+(?:\.\d+)?\s*NACB[^\.]*\.?",
+        r"\d+(?:\.\d+)?\s*NACB[^\.]*\.?",
+        r"NACB\s*\d+(?:\.\d+)?(?:\s*[-–]\s*\d+(?:\.\d+)?)?[^\.]*\.?",
     ]
     for pat in patterns: c=re.sub(pat,"",c,flags=re.I)
     return re.sub(r"\s+"," ",c).strip(" .")
@@ -205,7 +304,7 @@ st.markdown(f'<div class="hero"><div style="display:flex;align-items:center;just
 with st.sidebar:
     if LOGO_PATH.exists(): st.image(str(LOGO_PATH),use_container_width=True)
     st.header("Upload PDF Reports")
-    st.caption("Upload one or more Agworld CropCheck PDFs. Cotton paddock data will be extracted automatically.")
+    st.caption("Upload one or more Agworld CropCheck PDFs. Cotton paddock data will be extracted automatically, including beat-sheet insect counts converted to insects per metre.")
     uploads=st.file_uploader("Choose CropCheck PDF files",type=["pdf"],accept_multiple_files=True)
     if uploads:
         names=[u.name for u in uploads]
