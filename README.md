@@ -87,3 +87,9 @@ PDF To Do List Summary:
 - Shows the source check/report beside each action.
 - Adds a checkbox column so the page can be used as a practical to-do list.
 - Does not invent recommendations when none are present in the source check.
+
+
+To Do PDF page fix:
+- Fixed NameError caused by the undefined `h1` style.
+- The To Do List Summary page now uses the existing PDF title style.
+- All previous dashboard, PDF, recommendation, and CropCheck extraction features remain enabled.

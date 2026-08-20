@@ -947,7 +947,7 @@ def create_pdf(df,grower,advisor,observation,inspection_date,assessment,recommen
     # Separate To Do List Summary page from each uploaded CropCheck check.
     todo_items = todo_items or []
     story.append(PageBreak())
-    story.append(Paragraph("To Do List Summary", h1))
+    story.append(Paragraph("To Do List Summary", title_style))
     story.append(Paragraph(
         'Actions extracted from wording such as "Will suggest", "Recommend" or "Suggested" in the uploaded CropCheck checks.',
         body,
