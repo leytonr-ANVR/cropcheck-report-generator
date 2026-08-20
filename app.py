@@ -346,10 +346,19 @@ def _calculate_beat_sheet_per_metre(count_text, metres):
     return list(dict.fromkeys(results))
 
 def parse_insects(comments):
-    """Extract insect counts and automatically calculate beat-sheet insects per metre."""
+    """
+    Extract insect observations including:
+    - beat-sheet counts and insects per metre
+    - Aphid counts
+    - WF / Whitefly counts
+    - Aphid percentages
+    - WF / Whitefly percentages
+
+    Percentages are only added when they are explicitly present in the source text.
+    """
     observations = []
 
-    # General beat-sheet count. Works with 20 m, 10m etc.
+    # Beat-sheet counts
     m = re.search(
         r"(\d+(?:\.\d+)?)\s*m\s+beat\s+sheet\s+found\s+(.+?)"
         r"(?:\.|1st\s+pos|1st\s+position|$)",
@@ -360,39 +369,60 @@ def parse_insects(comments):
         metres = float(m.group(1))
         value = clean_comments(m.group(2))
         if value:
-            metre_label = _format_per_metre(metres)
-            observations.append(f"{value} / {metre_label} m beat sheet")
-
+            observations.append(f"{value} / {_format_per_metre(metres)} m beat sheet")
             per_metre = _calculate_beat_sheet_per_metre(value, metres)
             if per_metre:
                 observations.append("Per metre: " + "; ".join(per_metre))
 
-    # Aphids: supports "3 aphids", "Aphids 3", "Aphid count 3", "3 Aph".
-    aphid_patterns = [
+    # Aphid count
+    aphid_count_patterns = [
         r"\b(\d+(?:\.\d+)?)\s*(?:aphids?|aph)\b",
         r"\baphids?\s*(?:count\s*)?[:=-]?\s*(\d+(?:\.\d+)?)\b",
         r"\baph\s*[:=-]?\s*(\d+(?:\.\d+)?)\b",
     ]
-    for pat in aphid_patterns:
+    for pat in aphid_count_patterns:
         m = re.search(pat, comments, flags=re.I)
         if m:
             observations.append(f"Aphids: {m.group(1)}")
             break
 
-    # Whitefly / WF counts.
-    wf_patterns = [
+    # Whitefly / WF count
+    wf_count_patterns = [
         r"\b(\d+(?:\.\d+)?)\s*(?:WF|white\s*flies|whiteflies|whitefly)\b",
         r"\bWF\s*(?:count\s*)?[:=-]?\s*(\d+(?:\.\d+)?)\b",
         r"\bwhite\s*fly\s*(?:count\s*)?[:=-]?\s*(\d+(?:\.\d+)?)\b",
         r"\bwhitefly\s*(?:count\s*)?[:=-]?\s*(\d+(?:\.\d+)?)\b",
     ]
-    for pat in wf_patterns:
+    for pat in wf_count_patterns:
         m = re.search(pat, comments, flags=re.I)
         if m:
             observations.append(f"WF: {m.group(1)}")
             break
 
-    # Fallback when no structured insect observations were found.
+    # Aphid percentage
+    aphid_pct_patterns = [
+        r"\baphids?\s*(?:incidence|infestation|plants?|leaves?|count)?\s*[:=-]?\s*(\d+(?:\.\d+)?)\s*%",
+        r"\b(\d+(?:\.\d+)?)\s*%\s*(?:aphids?|aphid\s+incidence|aphid\s+infestation)\b",
+        r"\baph\s*[:=-]?\s*(\d+(?:\.\d+)?)\s*%",
+    ]
+    for pat in aphid_pct_patterns:
+        m = re.search(pat, comments, flags=re.I)
+        if m:
+            observations.append(f"Aphids: {m.group(1)}%")
+            break
+
+    # Whitefly / WF percentage
+    wf_pct_patterns = [
+        r"\b(?:WF|white\s*fly|whitefly|whiteflies)\s*(?:incidence|infestation|plants?|leaves?|count)?\s*[:=-]?\s*(\d+(?:\.\d+)?)\s*%",
+        r"\b(\d+(?:\.\d+)?)\s*%\s*(?:WF|white\s*fly|whitefly|whiteflies)\b",
+    ]
+    for pat in wf_pct_patterns:
+        m = re.search(pat, comments, flags=re.I)
+        if m:
+            observations.append(f"WF: {m.group(1)}%")
+            break
+
+    # Fallback
     if not observations:
         m = re.search(r"found\s+([^\.]{1,45})", comments, flags=re.I)
         if m:
@@ -587,7 +617,16 @@ def create_pdf(df,grower,advisor,observation,inspection_date,assessment,recommen
     story += [dt,Spacer(1,4*mm)]
     data=[[Paragraph(f"<b>{h}</b>",small) for h in COLUMNS]]
     for _,r in df.iterrows(): data.append([Paragraph(str(r[h]),small) for h in COLUMNS])
-    t=Table(data,colWidths=[18*mm,17*mm,24*mm,14*mm,23*mm,13*mm,13*mm,14*mm,32*mm,57*mm],repeatRows=1)
+    available_width = landscape(A4)[0] - 20*mm
+    weight_map = {
+        "Location":1.0, "Paddock":1.0, "Variety":1.35, "Area (ha)":0.8,
+        "First Position Retention":1.2, "NAWF":0.75, "NACB":0.75,
+        "Bolls / m":0.8, "Insect observations":1.8, "Other observations":2.4
+    }
+    weights = [weight_map.get(c,1.0) for c in pdf_cols]
+    total_weight = sum(weights) or 1
+    col_widths = [available_width*w/total_weight for w in weights]
+    t=Table(data,colWidths=col_widths,repeatRows=1)
     t.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,0),colors.HexColor("#06385f")),("TEXTCOLOR",(0,0),(-1,0),colors.white),("GRID",(0,0),(-1,-1),.35,colors.HexColor("#a9bbc8")),("VALIGN",(0,0),(-1,-1),"TOP"),("ROWBACKGROUNDS",(0,1),(-1,-1),[colors.white,colors.HexColor("#f6fafc")]),("LEFTPADDING",(0,0),(-1,-1),3),("RIGHTPADDING",(0,0),(-1,-1),3),("TOPPADDING",(0,0),(-1,-1),3),("BOTTOMPADDING",(0,0),(-1,-1),3)]))
     total=pd.to_numeric(df["Area (ha)"],errors="coerce").fillna(0).sum()
     story += [t,Spacer(1,3*mm),Paragraph(f"<b>Total cotton area:</b> {total:.2f} ha",h2),Paragraph("Overall Assessment",h2),Paragraph((assessment or "-").replace("\n","<br/>"),body),Paragraph("Recommendations",h2),Paragraph((recommendations or "-").replace("\n","<br/>"),body)]
@@ -597,6 +636,18 @@ def create_pdf(df,grower,advisor,observation,inspection_date,assessment,recommen
 def preview_pdf(pdf_bytes):
     b64=base64.b64encode(pdf_bytes).decode("ascii")
     components.html(f'<iframe src="data:application/pdf;base64,{b64}" width="100%" height="560" style="border:1px solid #d7e7f3;border-radius:12px;"></iframe>',height=575,scrolling=False)
+
+
+def column_has_data(series):
+    cleaned = series.astype(str).str.strip().str.lower()
+    return (~cleaned.isin(["", "nan", "none", "n/a", "na", "-", "—"])).any()
+
+def visible_crop_columns(df):
+    core = ["Location", "Paddock", "Variety", "Area (ha)"]
+    optional = ["First Position Retention", "NAWF", "NACB", "Bolls / m",
+                "Insect observations", "Other observations"]
+    return ([c for c in core if c in df.columns] +
+            [c for c in optional if c in df.columns and column_has_data(df[c])])
 
 if "crop_data" not in st.session_state: st.session_state.crop_data=pd.DataFrame(SAMPLE_ROWS,columns=COLUMNS)
 if "assessment" not in st.session_state: st.session_state.assessment=DEFAULT_ASSESSMENT
@@ -681,8 +732,10 @@ with center_col:
     st.markdown("</div></div>", unsafe_allow_html=True)
 
     st.markdown("<div class='table-shell'><div class='panel-title'>🧰 Cotton Paddocks</div>", unsafe_allow_html=True)
+    _visible_cols = visible_crop_columns(st.session_state.crop_data)
+    _display_df = st.session_state.crop_data[_visible_cols].copy()
     edited = st.data_editor(
-        st.session_state.crop_data, num_rows="dynamic", use_container_width=True, hide_index=True, height=510,
+        _display_df, num_rows="dynamic", use_container_width=True, hide_index=True, height=510,
         column_config={
             "Location": st.column_config.TextColumn("Location", width="small"),
             "Paddock": st.column_config.TextColumn("Paddock", width="small"),
@@ -692,12 +745,15 @@ with center_col:
             "NAWF": st.column_config.TextColumn("NAWF", width="small"),
             "NACB": st.column_config.TextColumn("NACB", width="small"),
             "Bolls / m": st.column_config.TextColumn("Bolls / m", width="small"),
-            "Insect observations": st.column_config.TextColumn("Insect Observations (Per metre)", width="large"),
+            "Insect observations": st.column_config.TextColumn("Insects / m / Aphids % / WF %", width="large"),
             "Other observations": st.column_config.TextColumn("Notes", width="medium"),
         },
         key="crop_editor_photo"
     )
-    st.session_state.crop_data = edited
+    _full_df = st.session_state.crop_data.reindex(index=edited.index, columns=COLUMNS, fill_value="").copy()
+    for _col in edited.columns:
+        _full_df[_col] = edited[_col]
+    st.session_state.crop_data = _full_df
     st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("<div class='report-card'><div class='card-head'>📄 Upload and Generate Report</div><div class='smalltext'>Once your PDF reports are uploaded, the app automatically extracts the data. You can edit or add notes, then generate a professional PDF report with the AGnVET Rural logo.</div></div>", unsafe_allow_html=True)
