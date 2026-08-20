@@ -665,10 +665,24 @@ def extract_todo_recommendations(text):
 
 def parse_cropcheck_pdf(file_bytes, filename):
     reader=PdfReader(io.BytesIO(file_bytes))
-    rows=[]; meta={"grower":"","date":"","observation":"","filename":filename}
-    meta["todo_recommendations"] = extract_todo_recommendations(text)
+    rows=[]
+    meta={
+        "grower":"",
+        "date":"",
+        "observation":"",
+        "filename":filename,
+        "todo_recommendations":[],
+    }
+    _todo_seen=set()
+
     for page in reader.pages:
         text=page.extract_text() or ""
+        # Extract recommendations only after page text exists.
+        for _todo in extract_todo_recommendations(text):
+            _key=_todo.strip().lower()
+            if _key and _key not in _todo_seen:
+                _todo_seen.add(_key)
+                meta["todo_recommendations"].append(_todo)
         if not text.strip(): continue
         gm=re.search(r"Grower:\s*\n([^\n]+)",text,re.I)
         if gm and not meta["grower"]: meta["grower"]=gm.group(1).strip()

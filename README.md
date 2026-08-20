@@ -99,3 +99,10 @@ To Do title style fix:
 - Fixed the remaining NameError caused by `title_style` not existing in create_pdf().
 - Added a dedicated `todo_title_style` inside create_pdf() before the To Do page is built.
 - Verified that the style is defined before use.
+
+
+To Do parser upload fix:
+- Fixed UnboundLocalError caused by using `text` before page text had been extracted.
+- Recommendations are now extracted after each PDF page is read.
+- Duplicate recommendations are removed while preserving their original order.
+- PDF upload and To Do Summary features remain enabled.
