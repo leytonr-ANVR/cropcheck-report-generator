@@ -28,3 +28,11 @@ PDF error fix:
 - Fixed NameError: `pdf_cols` is now defined inside create_pdf() before adaptive column widths are calculated.
 - Automatic empty-column hiding remains enabled in the app and generated PDF.
 - Aphid % and WF % extraction remains enabled.
+
+
+PDF wrapping fix:
+- Long table text is now wrapped using ReportLab Paragraph objects.
+- Insect observations and Notes columns receive more width.
+- Cell padding and vertical alignment were improved.
+- Semicolon-separated observations are broken across lines for readability.
+- The table can split cleanly across pages without text spilling into adjacent columns.

@@ -621,27 +621,60 @@ def create_pdf(df,grower,advisor,observation,inspection_date,assessment,recommen
         pdf_cols = [c for c in COLUMNS if c in df.columns]
 
     pdf_df = df.reindex(columns=pdf_cols, fill_value="").copy()
-    data = [pdf_cols] + pdf_df.fillna("").astype(str).values.tolist()
+
+    # Wrap every table cell in a Paragraph so long notes stay inside their column.
+    table_header_style = ParagraphStyle(
+        "TableHeader",
+        parent=styles["Normal"],
+        fontSize=6.4,
+        leading=7.4,
+        textColor=colors.white,
+        alignment=0,
+        wordWrap="CJK",
+    )
+    table_cell_style = ParagraphStyle(
+        "TableCell",
+        parent=styles["Normal"],
+        fontSize=6.2,
+        leading=7.3,
+        textColor=colors.black,
+        alignment=0,
+        wordWrap="CJK",
+    )
+
+    def _pdf_safe(value):
+        if pd.isna(value):
+            return ""
+        value = str(value)
+        # Escape basic XML characters used by ReportLab Paragraph.
+        value = value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        # Encourage wrapping of slash/semicolon-heavy agronomy observations.
+        value = value.replace("; ", ";<br/>")
+        return value
+
+    data = [[Paragraph(_pdf_safe(col), table_header_style) for col in pdf_cols]]
+    for _, row in pdf_df.iterrows():
+        data.append([Paragraph(_pdf_safe(row[col]), table_cell_style) for col in pdf_cols])
 
     # Calculate widths dynamically so hidden/visible columns always fit.
     available_width = landscape(A4)[0] - 20*mm
     weight_map = {
-        "Location": 1.0,
-        "Paddock": 1.0,
+        "Location": 0.95,
+        "Paddock": 0.95,
         "Variety": 1.35,
-        "Area (ha)": 0.8,
-        "First Position Retention": 1.2,
-        "NAWF": 0.75,
-        "NACB": 0.75,
-        "Bolls / m": 0.8,
-        "Insect observations": 1.8,
-        "Other observations": 2.4,
+        "Area (ha)": 0.75,
+        "First Position Retention": 1.15,
+        "NAWF": 0.70,
+        "NACB": 0.70,
+        "Bolls / m": 0.75,
+        "Insect observations": 2.35,
+        "Other observations": 3.10,
     }
     weights = [weight_map.get(col, 1.0) for col in pdf_cols]
     total_weight = sum(weights) or 1.0
     col_widths = [available_width * weight / total_weight for weight in weights]
 
-    t = Table(data, colWidths=col_widths, repeatRows=1)
+    t = Table(data, colWidths=col_widths, repeatRows=1, splitByRow=1)
     t.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,0),colors.HexColor("#06385f")),("TEXTCOLOR",(0,0),(-1,0),colors.white),("GRID",(0,0),(-1,-1),.35,colors.HexColor("#a9bbc8")),("VALIGN",(0,0),(-1,-1),"TOP"),("ROWBACKGROUNDS",(0,1),(-1,-1),[colors.white,colors.HexColor("#f6fafc")]),("LEFTPADDING",(0,0),(-1,-1),3),("RIGHTPADDING",(0,0),(-1,-1),3),("TOPPADDING",(0,0),(-1,-1),3),("BOTTOMPADDING",(0,0),(-1,-1),3)]))
     total=pd.to_numeric(df["Area (ha)"],errors="coerce").fillna(0).sum()
     story += [t,Spacer(1,3*mm),Paragraph(f"<b>Total cotton area:</b> {total:.2f} ha",h2),Paragraph("Overall Assessment",h2),Paragraph((assessment or "-").replace("\n","<br/>"),body),Paragraph("Recommendations",h2),Paragraph((recommendations or "-").replace("\n","<br/>"),body)]
