@@ -58,3 +58,11 @@ Node parser error fix:
 - Fixed NameError: parse_nodes is now always defined before PDF parsing.
 - Added a defensive fallback so PDF uploads won't crash if node parsing is unavailable.
 - Existing Nodes, Single Aphids, Cluster Aphids, WF, NACB, Bolls/m and PDF wrapping features remain enabled.
+
+
+Dashboard averages update:
+- Adds Average NAWF when NAWF data is present.
+- Adds Average NACB when NACB data is present.
+- Single values are averaged directly.
+- For ranges such as 5.9–6.7, the midpoint is used before calculating the overall paddock average.
+- Metrics are hidden automatically when no valid data is present.
