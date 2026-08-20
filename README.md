@@ -36,3 +36,12 @@ PDF wrapping fix:
 - Cell padding and vertical alignment were improved.
 - Semicolon-separated observations are broken across lines for readability.
 - The table can split cleanly across pages without text spilling into adjacent columns.
+
+
+Nodes update:
+- Adds a separate Nodes column.
+- Converts CropCheck notation such as `20-22n` to `20–22` under Nodes.
+- Supports single node counts such as `20n`.
+- Supports wording such as `Nodes 20-22` or `node count 20-22`.
+- Nodes automatically hide when no node data is present.
+- Nodes are included in the generated PDF only when data exists.

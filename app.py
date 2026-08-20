@@ -235,16 +235,16 @@ st.markdown(
 APP_DIR = Path(__file__).resolve().parent
 LOGO_PATH = APP_DIR / "assets" / "agnvet_rural_logo.png"
 
-COLUMNS = ["Location","Paddock","Variety","Area (ha)","First Position Retention","NAWF","NACB","Bolls / m","Insect observations","Other observations"]
+COLUMNS = ["Location","Paddock","Variety","Area (ha)","Nodes","First Position Retention","NAWF","NACB","Bolls / m","Insect observations","Other observations"]
 SAMPLE_ROWS = [
-    ["Woodbine", "WB P1", "Siokra 253B3XF", 18.22, "86–89%", "7.0", "", "", "1 MN / 20 m beat sheet; Per metre: MN: 0.05/m", "Good growth; clean for weeds"],
-    ["Donview", "P34 #02", "CSX1320B3XF", 1.50, "89–91%", "5.9–6.7", "", "", "5 MN / 20 m beat sheet; Per metre: MN: 0.25/m", "P34 combined inspection; Roundup spray noted as ordinary"],
-    ["Donview", "P34 #03", "Sicot 606B3F", 3.22, "89–91%*", "5.9–6.7*", "", "", "5 MN*; Per metre: MN: 0.25/m", "P34 combined inspection"],
-    ["Donview", "P34 #04", "Sicot 619B3XF", 1.63, "89–91%*", "5.9–6.7*", "", "", "5 MN*; Per metre: MN: 0.25/m", "P34 combined inspection"],
-    ["Donview", "P34 #05", "Sicot 606B3F", 13.37, "89–91%*", "5.9–6.7*", "", "", "5 MN*; Per metre: MN: 0.25/m", "P34 combined inspection"],
-    ["Donview", "VP2", "Sicot 606B3F", 11.97, "85–86%", "6.2–6.8", "", "", "2 MN / 20 m beat sheet; Per metre: MN: 0.1/m", "Some small boll loss; good plant height in areas"],
-    ["Kearneys", "CP1", "Sicot 606B3F", 20.38, "86–88%", "5.4–5.5", "", "", "1 MA / 20 m beat sheet; Per metre: MA: 0.05/m", "Eastern side getting leggy; bellvine present"],
-    ["Kearneys", "KP1", "Sicot 606B3F", 28.10, "79–81%", "5.5–6.0", "", "", "1 CS + 1 GVBN / 20 m beat sheet; Per metre: CS: 0.05/m; GVBN: 0.05/m", "Early bottom fruit loss in places; newer positions compensating"],
+    ["Woodbine", "WB P1", "Siokra 253B3XF", 18.22, "19–22", "86–89%", "7.0", "", "", "1 MN / 20 m beat sheet; Per metre: MN: 0.05/m", "Good growth; clean for weeds"],
+    ["Donview", "P34 #02", "CSX1320B3XF", 1.50, "20–22", "89–91%", "5.9–6.7", "", "", "5 MN / 20 m beat sheet; Per metre: MN: 0.25/m", "P34 combined inspection; Roundup spray noted as ordinary"],
+    ["Donview", "P34 #03", "Sicot 606B3F", 3.22, "20–22", "89–91%*", "5.9–6.7*", "", "", "5 MN*; Per metre: MN: 0.25/m", "P34 combined inspection"],
+    ["Donview", "P34 #04", "Sicot 619B3XF", 1.63, "20–22", "89–91%*", "5.9–6.7*", "", "", "5 MN*; Per metre: MN: 0.25/m", "P34 combined inspection"],
+    ["Donview", "P34 #05", "Sicot 606B3F", 13.37, "20–22", "89–91%*", "5.9–6.7*", "", "", "5 MN*; Per metre: MN: 0.25/m", "P34 combined inspection"],
+    ["Donview", "VP2", "Sicot 606B3F", 11.97, "20–22", "85–86%", "6.2–6.8", "", "", "2 MN / 20 m beat sheet; Per metre: MN: 0.1/m", "Some small boll loss; good plant height in areas"],
+    ["Kearneys", "CP1", "Sicot 606B3F", 20.38, "20–22", "86–88%", "5.4–5.5", "", "", "1 MA / 20 m beat sheet; Per metre: MA: 0.05/m", "Eastern side getting leggy; bellvine present"],
+    ["Kearneys", "KP1", "Sicot 606B3F", 28.10, "20–22", "79–81%", "5.5–6.0", "", "", "1 CS + 1 GVBN / 20 m beat sheet; Per metre: CS: 0.05/m; GVBN: 0.05/m", "Early bottom fruit loss in places; newer positions compensating"],
 ]
 DEFAULT_ASSESSMENT = ("Cotton crops were generally progressing well. First-position retention ranged from 79–91%. KP1 recorded the lowest retention range and had early bottom fruit loss in places. Continued monitoring of fruit retention, crop maturity, weed control and insect activity is recommended.")
 DEFAULT_RECOMMENDATIONS = ("1. Continue monitoring paddocks with lower first-position retention.\n2. Monitor boll loss and changes in NAWF at subsequent CropChecks.\n3. Follow up weed control where weeds remain present.\n4. Continue monitoring insect levels and crop maturity.")
@@ -430,6 +430,42 @@ def parse_insects(comments):
 
     return "; ".join(dict.fromkeys(o for o in observations if o))
 
+def parse_nodes(comments):
+    """
+    Extract cotton node count from common CropCheck notation:
+      20-22n
+      19–22 n
+      20n
+      Nodes 20-22
+      node count 20-22
+    Returns the numeric range/value without the trailing 'n'.
+    """
+    if not comments:
+        return ""
+
+    m = re.search(
+        r"\b(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)\s*n\b",
+        comments,
+        flags=re.I,
+    )
+    if m:
+        return f"{m.group(1)}–{m.group(2)}"
+
+    m = re.search(r"\b(\d+(?:\.\d+)?)\s*n\b", comments, flags=re.I)
+    if m:
+        return m.group(1)
+
+    m = re.search(
+        r"\b(?:nodes?|node\s*count)\s*[:=-]?\s*"
+        r"(\d+(?:\.\d+)?)(?:\s*[-–]\s*(\d+(?:\.\d+)?))?",
+        comments,
+        flags=re.I,
+    )
+    if m:
+        return f"{m.group(1)}–{m.group(2)}" if m.group(2) else m.group(1)
+
+    return ""
+
 def parse_retention(comments):
     m=re.search(r"(?:1st|first)\s+(?:pos|position)(?:ition)?\s+retention\s+(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)\s*%",comments,re.I)
     return f"{m.group(1)}–{m.group(2)}%" if m else ""
@@ -547,10 +583,11 @@ def parse_cropcheck_pdf(file_bytes, filename):
                 entries.append((location,m.group(1).strip(),m.group(2).strip(),float(m.group(3))))
             elif not re.search(r"\d+(?:\.\d+)?\s+\d+(?:\.\d+)?$",ln) and "Cotton" not in ln:
                 location=ln
-        retention=parse_retention(comments); nawf=parse_nawf(comments); nacb=parse_nacb(comments); bolls_per_m=parse_bolls_per_metre(comments); insects=parse_insects(comments); other=extract_other_observations(comments)
+        nodes=parse_nodes(comments); retention=parse_retention(comments); nawf=parse_nawf(comments); nacb=parse_nacb(comments); bolls_per_m=parse_bolls_per_metre(comments); insects=parse_insects(comments); other=extract_other_observations(comments)
         shared=len(entries)>1
         for location,paddock,variety,area in entries:
             rows.append({"Location":location,"Paddock":paddock,"Variety":variety,"Area (ha)":area,
+                         "Nodes":nodes+("*" if shared and nodes else ""),
                          "First Position Retention":retention+("*" if shared and retention else ""),
                          "NAWF":nawf+("*" if shared and nawf else ""),
                          "NACB":nacb+("*" if shared and nacb else ""),
@@ -573,7 +610,7 @@ def merge_uploaded_reports(files):
         if col not in df.columns:
             df[col] = ""
     df=df.drop_duplicates(
-        subset=["Location","Paddock","Variety","Area (ha)","First Position Retention","NAWF","NACB","Bolls / m"],
+        subset=["Location","Paddock","Variety","Area (ha)","Nodes","First Position Retention","NAWF","NACB","Bolls / m"],
         keep="last"
     )
     return df[COLUMNS].reset_index(drop=True), metas, comments
@@ -692,7 +729,7 @@ def column_has_data(series):
 
 def visible_crop_columns(df):
     core = ["Location", "Paddock", "Variety", "Area (ha)"]
-    optional = ["First Position Retention", "NAWF", "NACB", "Bolls / m",
+    optional = ["Nodes", "First Position Retention", "NAWF", "NACB", "Bolls / m",
                 "Insect observations", "Other observations"]
     return ([c for c in core if c in df.columns] +
             [c for c in optional if c in df.columns and column_has_data(df[c])])
@@ -789,6 +826,7 @@ with center_col:
             "Paddock": st.column_config.TextColumn("Paddock", width="small"),
             "Variety": st.column_config.TextColumn("Variety", width="medium"),
             "Area (ha)": st.column_config.NumberColumn("Area (ha)", min_value=0.0, step=0.01, format="%.2f", width="small"),
+            "Nodes": st.column_config.TextColumn("Nodes", width="small"),
             "First Position Retention": st.column_config.TextColumn("Retention (%)", width="small"),
             "NAWF": st.column_config.TextColumn("NAWF", width="small"),
             "NACB": st.column_config.TextColumn("NACB", width="small"),
