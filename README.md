@@ -79,3 +79,11 @@ PDF dashboard measurements update:
 - Adds dashboard measurements below the paddock table in the PDF.
 - Includes Total Cotton Area, Paddocks, Highest Retention, Lowest Retention.
 - Includes Average Retention, Average NAWF and Average NACB when data is present.
+
+
+PDF To Do List Summary:
+- Adds a separate page to the generated PDF.
+- Extracts action items from each uploaded check when wording such as `Will suggest`, `Recommend`, `Recommended`, `Recommendation`, `Suggest` or `Suggested` is present.
+- Shows the source check/report beside each action.
+- Adds a checkbox column so the page can be used as a practical to-do list.
+- Does not invent recommendations when none are present in the source check.

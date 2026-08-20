@@ -12,7 +12,7 @@ from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import mm
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak
 
 st.set_page_config(page_title="CropCheck Report Generator", page_icon="🌱", layout="wide", initial_sidebar_state="expanded")
 
@@ -613,9 +613,60 @@ def extract_other_observations(comments):
     for pat in patterns: c=re.sub(pat,"",c,flags=re.I)
     return re.sub(r"\s+"," ",c).strip(" .")
 
+
+def extract_todo_recommendations(text):
+    """
+    Extract action items from each CropCheck check.
+    Prioritises wording such as:
+      Will suggest ...
+      Recommend ...
+      Recommended ...
+      Recommendation ...
+      Suggest ...
+      Suggested ...
+    Returns a de-duplicated list without inventing new actions.
+    """
+    if not text:
+        return []
+
+    cleaned = re.sub(r"\s+", " ", str(text)).strip()
+    items = []
+
+    patterns = [
+        r"\bwill\s+suggest\b\s*[:\-]?\s*(.+?)(?=(?:\bwill\s+suggest\b|\brecommend(?:ed|ation|ations)?\b|\bsuggest(?:ed|ion|ions)?\b|$))",
+        r"\brecommend(?:ed|ation|ations)?\b\s*[:\-]?\s*(.+?)(?=(?:\bwill\s+suggest\b|\brecommend(?:ed|ation|ations)?\b|\bsuggest(?:ed|ion|ions)?\b|$))",
+        r"\bsuggest(?:ed|ion|ions)?\b\s*[:\-]?\s*(.+?)(?=(?:\bwill\s+suggest\b|\brecommend(?:ed|ation|ations)?\b|\bsuggest(?:ed|ion|ions)?\b|$))",
+    ]
+
+    for pat in patterns:
+        for match in re.finditer(pat, cleaned, flags=re.I):
+            item = match.group(1).strip(" .;:-")
+            # Keep the extracted action concise but complete.
+            if item:
+                # Stop at common report-field boundaries if they appear.
+                item = re.split(
+                    r"\b(?:1st\s+pos(?:ition)?|NAWF|NACB|beat\s+sheet|variety|area|paddock|location)\b",
+                    item,
+                    maxsplit=1,
+                    flags=re.I,
+                )[0].strip(" .;:-")
+            if item and len(item) >= 3:
+                items.append(item)
+
+    # Preserve order while removing duplicates.
+    seen = set()
+    result = []
+    for item in items:
+        key = item.lower()
+        if key not in seen:
+            seen.add(key)
+            result.append(item)
+    return result
+
 def parse_cropcheck_pdf(file_bytes, filename):
     reader=PdfReader(io.BytesIO(file_bytes))
     rows=[]; meta={"grower":"","date":"","observation":"","filename":filename}
+    meta["todo_recommendations"] = extract_todo_recommendations(text)
     for page in reader.pages:
         text=page.extract_text() or ""
         if not text.strip(): continue
@@ -662,6 +713,11 @@ def merge_uploaded_reports(files):
         r,m=parse_cropcheck_pdf(f.getvalue(),f.name)
         rows.extend(r)
         metas.append(m)
+        for _todo in m.get("todo_recommendations", []):
+            comments.append({
+                "source": f.name,
+                "action": _todo,
+            })
     if not rows:
         return pd.DataFrame(columns=COLUMNS), metas, comments
     df=pd.DataFrame(rows)
@@ -697,7 +753,7 @@ def auto_recommendations(df):
     rec += ["Continue regular insect monitoring and record any change in pest pressure.","Track NAWF and crop maturity at subsequent inspections."]
     return "\n".join(f"{i+1}. {x}" for i,x in enumerate(rec))
 
-def create_pdf(df,grower,advisor,observation,inspection_date,assessment,recommendations):
+def create_pdf(df,grower,advisor,observation,inspection_date,assessment,recommendations, todo_items=None):
     buf=io.BytesIO(); doc=SimpleDocTemplate(buf,pagesize=landscape(A4),rightMargin=10*mm,leftMargin=10*mm,topMargin=9*mm,bottomMargin=9*mm)
     styles=getSampleStyleSheet()
     title=ParagraphStyle("TitleCustom",parent=styles["Title"],fontSize=18,leading=21,textColor=colors.HexColor("#06385f"),alignment=TA_CENTER)
@@ -888,6 +944,58 @@ def create_pdf(df,grower,advisor,observation,inspection_date,assessment,recommen
     ]
 
     if any("*" in str(v) for v in df["First Position Retention"].tolist()+df["NAWF"].tolist()): story += [Spacer(1,2*mm),Paragraph("* Asterisked measurements were reported as combined figures for multiple paddocks/varieties on the same CropCheck inspection page.",small)]
+    # Separate To Do List Summary page from each uploaded CropCheck check.
+    todo_items = todo_items or []
+    story.append(PageBreak())
+    story.append(Paragraph("To Do List Summary", h1))
+    story.append(Paragraph(
+        'Actions extracted from wording such as "Will suggest", "Recommend" or "Suggested" in the uploaded CropCheck checks.',
+        body,
+    ))
+    story.append(Spacer(1, 4*mm))
+
+    if todo_items:
+        todo_rows = [[
+            Paragraph("<b>Done</b>", small),
+            Paragraph("<b>Check / Source</b>", small),
+            Paragraph("<b>To Do / Recommendation</b>", small),
+        ]]
+        for item in todo_items:
+            source = str(item.get("source", "")).strip()
+            action = str(item.get("action", "")).strip()
+            if not action:
+                continue
+            safe_source = source.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            safe_action = action.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            todo_rows.append([
+                Paragraph("☐", body),
+                Paragraph(safe_source, table_cell_style),
+                Paragraph(safe_action, table_cell_style),
+            ])
+
+        if len(todo_rows) > 1:
+            todo_table = Table(
+                todo_rows,
+                colWidths=[14*mm, 55*mm, landscape(A4)[0] - 20*mm - 69*mm],
+                repeatRows=1,
+                splitByRow=1,
+            )
+            todo_table.setStyle(TableStyle([
+                ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#06366e")),
+                ("TEXTCOLOR", (0,0), (-1,0), colors.white),
+                ("GRID", (0,0), (-1,-1), 0.4, colors.HexColor("#c9d8e4")),
+                ("VALIGN", (0,0), (-1,-1), "TOP"),
+                ("LEFTPADDING", (0,0), (-1,-1), 5),
+                ("RIGHTPADDING", (0,0), (-1,-1), 5),
+                ("TOPPADDING", (0,0), (-1,-1), 5),
+                ("BOTTOMPADDING", (0,0), (-1,-1), 5),
+            ]))
+            story.append(todo_table)
+        else:
+            story.append(Paragraph("No recommendations were found in the uploaded checks.", body))
+    else:
+        story.append(Paragraph("No recommendations were found in the uploaded checks.", body))
+
     doc.build(story); return buf.getvalue()
 
 def preview_pdf(pdf_bytes):
@@ -936,6 +1044,7 @@ if "crop_data" not in st.session_state: st.session_state.crop_data=pd.DataFrame(
 if "assessment" not in st.session_state: st.session_state.assessment=DEFAULT_ASSESSMENT
 if "recommendations" not in st.session_state: st.session_state.recommendations=DEFAULT_RECOMMENDATIONS
 if "uploaded_names" not in st.session_state: st.session_state.uploaded_names=[]
+if "todo_items" not in st.session_state: st.session_state.todo_items=[]
 
 # Upgrade older session data to the current schema without crashing.
 if "crop_data" in st.session_state:
@@ -980,6 +1089,7 @@ with left_col:
             else:
                 st.session_state.crop_data = parsed_df
                 st.session_state.uploaded_names = upload_names
+                st.session_state.todo_items = comments
                 st.session_state.assessment = auto_assessment(parsed_df)
                 st.session_state.recommendations = auto_recommendations(parsed_df)
                 first_meta = next((m for m in metas if m.get("grower") or m.get("date")), {})
@@ -1000,6 +1110,7 @@ with left_col:
         st.session_state.assessment = DEFAULT_ASSESSMENT
         st.session_state.recommendations = DEFAULT_RECOMMENDATIONS
         st.session_state.uploaded_names = []
+        st.session_state.todo_items = []
         st.rerun()
 
 with center_col:
@@ -1092,7 +1203,16 @@ with right_col:
     rec_lines = [re.sub(r"^\d+\.\s*","",line).strip() for line in st.session_state.recommendations.splitlines() if line.strip()]
     st.markdown("<ul style='padding-left:18px;margin:0'>" + "".join(f"<li>{r}</li>" for r in rec_lines[:5]) + "</ul></div>", unsafe_allow_html=True)
 
-    pdf_bytes = create_pdf(st.session_state.crop_data, grower, advisor, observation, inspection_date, st.session_state.assessment, st.session_state.recommendations)
+    pdf_bytes = create_pdf(
+        st.session_state.crop_data,
+        grower,
+        advisor,
+        observation,
+        inspection_date,
+        st.session_state.assessment,
+        st.session_state.recommendations,
+        st.session_state.todo_items,
+    )
     st.markdown("<div class='preview-shell'><div class='card-head'>Report Preview</div>", unsafe_allow_html=True)
     preview_pdf(pdf_bytes)
     st.markdown("</div>", unsafe_allow_html=True)
