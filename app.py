@@ -525,10 +525,38 @@ def parse_retention(comments):
     return f"{m.group(1)}–{m.group(2)}%" if m else ""
 
 def parse_nawf(comments):
-    m=re.search(r"(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)\s*NAWF",comments,re.I)
-    if m: return f"{m.group(1)}–{m.group(2)}"
-    m=re.search(r"(\d+(?:\.\d+)?)\s*NAWF",comments,re.I)
-    return m.group(1) if m else ""
+    """
+    Extract NAWF values from CropCheck comments.
+
+    Supported examples:
+      5.5-6 NAWF
+      5.4 NAWF
+      Cutout
+      cutout
+
+    If the report states that the crop has cut out, the NAWF field is set to
+    "Cutout" rather than inventing a numeric NAWF value.
+    """
+    if not comments:
+        return ""
+
+    m = re.search(
+        r"(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)\s*NAWF",
+        comments,
+        flags=re.I,
+    )
+    if m:
+        return f"{m.group(1)}–{m.group(2)}"
+
+    m = re.search(r"(\d+(?:\.\d+)?)\s*NAWF", comments, flags=re.I)
+    if m:
+        return m.group(1)
+
+    # Treat cutout as a legitimate NAWF status.
+    if re.search(r"\bcut\s*out\b|\bcutout\b", comments, flags=re.I):
+        return "Cutout"
+
+    return ""
 
 def parse_nacb(comments):
     m=re.search(r"(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)\s*NACB",comments,re.I)

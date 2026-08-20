@@ -106,3 +106,10 @@ To Do parser upload fix:
 - Recommendations are now extracted after each PDF page is read.
 - Duplicate recommendations are removed while preserving their original order.
 - PDF upload and To Do Summary features remain enabled.
+
+
+NAWF Cutout update:
+- The app now recognises `cutout`, `Cutout`, or `cut out` as valid NAWF information.
+- When cutout is stated without a numeric NAWF value, the NAWF column shows `Cutout`.
+- Numeric NAWF values still take priority if both a number and cutout wording are present.
+- Average NAWF ignores the text value `Cutout` because it is not a numeric measurement.
