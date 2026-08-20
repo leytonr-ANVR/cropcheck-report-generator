@@ -15,6 +15,223 @@ from reportlab.lib.units import mm
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
 
 st.set_page_config(page_title="CropCheck Report Generator", page_icon="🌱", layout="wide", initial_sidebar_state="expanded")
+
+st.markdown(
+    """
+    <style>
+    :root{
+        --navy:#082f5f;
+        --navy2:#0d4478;
+        --green:#0b8a49;
+        --light-green:#eef9f1;
+        --light-blue:#edf6fc;
+        --border:#d7e6f2;
+        --text:#0b2942;
+        --muted:#607387;
+        --danger:#e5383b;
+    }
+
+    html, body, [class*="css"] {
+        font-family: "Segoe UI", Arial, sans-serif;
+    }
+
+    .stApp {
+        background:#f6fbff;
+        color:var(--text);
+    }
+
+    /* top app spacing */
+    .block-container {
+        max-width: 1550px;
+        padding-top: 1.1rem;
+        padding-bottom: 1rem;
+    }
+
+    /* Sidebar */
+    [data-testid="stSidebar"] {
+        background:#f8fbfe;
+        border-right:1px solid var(--border);
+    }
+    [data-testid="stSidebar"] > div:first-child{
+        padding-top:1rem;
+    }
+
+    /* Hero */
+    .hero {
+        background:linear-gradient(100deg,#072d59 0%,#06386f 70%,#0a4779 100%);
+        border-radius:0;
+        padding:18px 24px;
+        color:#fff;
+        margin:-1.1rem -1rem 1rem -1rem;
+        box-shadow:0 4px 14px rgba(6,47,95,.18);
+    }
+    .hero-inner{
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:20px;
+    }
+    .hero-title{
+        font-size:2rem;
+        font-weight:800;
+        line-height:1.05;
+        margin:0;
+    }
+    .hero-sub{
+        margin:.35rem 0 0;
+        font-size:1rem;
+        opacity:.95;
+    }
+    .hero-logo{
+        height:74px;
+        background:#fff;
+        padding:6px 10px;
+        border-radius:8px;
+        box-shadow:0 2px 8px rgba(0,0,0,.12);
+    }
+
+    /* Generic cards */
+    .dash-card{
+        background:#fff;
+        border:1px solid var(--border);
+        border-radius:12px;
+        padding:14px 16px;
+        box-shadow:0 2px 10px rgba(8,47,95,.045);
+        margin-bottom:12px;
+    }
+    .dash-card h3{
+        margin:0 0 10px;
+        font-size:1.05rem;
+        color:var(--navy);
+        font-weight:800;
+    }
+    .green-card{
+        background:var(--light-green);
+        border:1px solid #cfe9d6;
+        border-radius:12px;
+        padding:14px 16px;
+    }
+    .blue-card{
+        background:var(--light-blue);
+        border:1px solid #cddff0;
+        border-radius:12px;
+        padding:14px 16px;
+    }
+
+    /* Metrics */
+    div[data-testid="stMetric"] {
+        background:#f4fff6;
+        border:1px solid #cfe9d6;
+        border-radius:10px;
+        padding:12px 10px;
+        text-align:center;
+    }
+    div[data-testid="stMetric"] label{
+        color:#22384e !important;
+        font-size:.86rem !important;
+    }
+    div[data-testid="stMetricValue"]{
+        font-size:1.55rem !important;
+        font-weight:800 !important;
+        color:#111 !important;
+    }
+
+    /* Headings */
+    h1,h2,h3{
+        color:var(--navy);
+    }
+
+    /* Inputs */
+    .stTextInput input, .stTextArea textarea, .stDateInput input{
+        border-radius:7px !important;
+        border:1px solid #cbd9e5 !important;
+        background:#fff !important;
+    }
+
+    /* Buttons */
+    .stButton button, .stDownloadButton button {
+        border-radius:7px !important;
+        font-weight:700 !important;
+        min-height:2.5rem;
+    }
+    .stDownloadButton button{
+        background:var(--navy) !important;
+        color:white !important;
+        border:0 !important;
+    }
+    .stButton button[kind="primary"]{
+        background:#0d8f45 !important;
+        border-color:#0d8f45 !important;
+    }
+
+    /* Data editor */
+    [data-testid="stDataFrame"]{
+        border:1px solid var(--border);
+        border-radius:10px;
+        overflow:hidden;
+        background:#fff;
+    }
+
+    /* uploader */
+    [data-testid="stFileUploader"]{
+        background:white;
+        border:1px dashed #7aa9d3;
+        border-radius:10px;
+        padding:10px;
+    }
+
+    /* sidebar fake nav */
+    .nav-item{
+        display:flex;
+        align-items:center;
+        gap:10px;
+        padding:10px 12px;
+        border-radius:8px;
+        color:#0b2f59;
+        margin:4px 0;
+        font-weight:600;
+        background:transparent;
+    }
+    .nav-item.active{
+        color:#fff;
+        background:linear-gradient(90deg,#06366d,#0a4b84);
+    }
+    .side-section-title{
+        font-size:.85rem;
+        font-weight:800;
+        color:#173b61;
+        margin:12px 0 5px;
+    }
+    .uploaded-file{
+        background:#fff;
+        border-bottom:1px solid #edf2f6;
+        padding:7px 4px;
+        font-size:.83rem;
+    }
+    .success-box{
+        background:#effcf2;
+        border:1px solid #bde9c5;
+        color:#14632d;
+        border-radius:9px;
+        padding:10px 12px;
+        margin-top:10px;
+        font-size:.84rem;
+        font-weight:600;
+    }
+
+    /* feature strip */
+    .feature-strip{
+        display:none;
+    }
+
+    /* hide Streamlit chrome */
+    #MainMenu{visibility:hidden;}
+    footer{visibility:hidden;}
+    header[data-testid="stHeader"]{background:transparent;}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 APP_DIR = Path(__file__).parent
 LOGO_PATH = APP_DIR / "assets" / "agnvet_rural_logo.png"
 
@@ -337,7 +554,7 @@ with top_left:
     st.markdown("### 📊 Report Summary")
     a,b,c,d=st.columns(4); a.metric("Total Cotton Area",f"{total:.2f} ha"); b.metric("Paddocks",len(df)); c.metric("Highest Retention",f"{hi:g}%" if hi is not None else "—"); d.metric("Lowest Retention",f"{lo:g}%" if lo is not None else "—")
 
-st.markdown("### 🧰 Cotton Paddocks")
+st.markdown('<div class="dash-card"><h3>🧰 &nbsp;Cotton Paddocks</h3>', unsafe_allow_html=True)
 edited=st.data_editor(st.session_state.crop_data,num_rows="dynamic",use_container_width=True,hide_index=True,column_config={"Area (ha)":st.column_config.NumberColumn("Area (ha)",min_value=0.0,step=0.01,format="%.2f"),"First Position Retention":st.column_config.TextColumn("Retention (%)"),"Insect observations":st.column_config.TextColumn("Insects",width="medium"),"Other observations":st.column_config.TextColumn("Other observations",width="large")})
 st.session_state.crop_data=edited
 

@@ -54,3 +54,7 @@ streamlit run app.py
 ## Important
 The PDF parser is tailored to the Agworld CropCheck format used in the supplied reports.
 Always review extracted figures before issuing the final report.
+
+
+## GUI update
+The interface has been restyled to match the supplied dashboard reference: navy header, branded logo panel, left upload/navigation rail, summary cards, compact report-details panel, cotton paddock dashboard, key observations, recommendations, and report generation area.
