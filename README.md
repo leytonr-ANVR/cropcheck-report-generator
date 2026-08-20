@@ -1,14 +1,29 @@
 # CropCheck Report Generator
 
-Web-hosted Streamlit app for editing cotton CropCheck paddock data and generating a PDF farm report.
+A Streamlit web app for converting Agworld CropCheck PDF reports into an editable consolidated cotton report.
+
+## Features
+- Upload one or multiple CropCheck PDFs
+- Automatically extract cotton paddock rows
+- Extract area, retention, NAWF, insect observations and comments
+- Edit extracted data before generating the report
+- Automatic total hectares and retention summary
+- Editable crop assessment and recommendations
+- AGnVET Rural logo included in the generated PDF
+- PDF preview and download
+- Preloaded Luck Farming cotton example data
+
+## Run locally
+```bash
+pip install -r requirements.txt
+streamlit run app.py
+```
 
 ## Deploy on Streamlit Community Cloud
-
 1. Create a GitHub repository.
-2. Upload `app.py`, `requirements.txt`, and `.streamlit/config.toml`.
-3. Go to https://share.streamlit.io/
-4. Sign in with GitHub.
-5. Choose the repository, branch `main`, and `app.py`.
-6. Deploy.
+2. Upload all files in this folder.
+3. In Streamlit Community Cloud choose the repository.
+4. Set the app file to `app.py`.
+5. Deploy.
 
-The app is preloaded with the Luck Farming cotton example data.
+PDF extraction is designed for the Agworld CropCheck structure used by the supplied example reports. Review extracted figures before issuing a final report.
