@@ -1,0 +1,5 @@
+Fixed issues:
+- SAMPLE_ROWS now has exactly 10 values per row to match COLUMNS.
+- PDF table now has 10 column widths.
+- Assets folder renamed to lowercase 'assets' for Streamlit Cloud/Linux.
+- Session-state column migration made safer.

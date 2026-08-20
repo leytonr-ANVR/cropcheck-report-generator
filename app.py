@@ -237,14 +237,14 @@ LOGO_PATH = APP_DIR / "assets" / "agnvet_rural_logo.png"
 
 COLUMNS = ["Location","Paddock","Variety","Area (ha)","First Position Retention","NAWF","NACB","Bolls / m","Insect observations","Other observations"]
 SAMPLE_ROWS = [
-    ["Woodbine", "WB P1", "Siokra 253B3XF", 18.22, "86–89%", "7.0", "1 MN / 20 m beat sheet; Per metre: MN: 0.05/m", "Good growth; clean for weeds"],
-    ["Donview", "P34 #02", "CSX1320B3XF", 1.50, "89–91%", "5.9–6.7", "5 MN / 20 m beat sheet; Per metre: MN: 0.25/m", "P34 combined inspection; Roundup spray noted as ordinary"],
-    ["Donview", "P34 #03", "Sicot 606B3F", 3.22, "89–91%*", "5.9–6.7*", "5 MN*; Per metre: MN: 0.25/m", "P34 combined inspection"],
-    ["Donview", "P34 #04", "Sicot 619B3XF", 1.63, "89–91%*", "5.9–6.7*", "5 MN*; Per metre: MN: 0.25/m", "P34 combined inspection"],
-    ["Donview", "P34 #05", "Sicot 606B3F", 13.37, "89–91%*", "5.9–6.7*", "5 MN*; Per metre: MN: 0.25/m", "P34 combined inspection"],
-    ["Donview", "VP2", "Sicot 606B3F", 11.97, "85–86%", "6.2–6.8", "2 MN / 20 m beat sheet; Per metre: MN: 0.1/m", "Some small boll loss; good plant height in areas"],
-    ["Kearneys", "CP1", "Sicot 606B3F", 20.38, "86–88%", "5.4–5.5", "1 MA / 20 m beat sheet; Per metre: MA: 0.05/m", "Eastern side getting leggy; bellvine present"],
-    ["Kearneys", "KP1", "Sicot 606B3F", 28.10, "79–81%", "5.5–6.0", "1 CS + 1 GVBN / 20 m beat sheet; Per metre: CS: 0.05/m; GVBN: 0.05/m", "Early bottom fruit loss in places; newer positions compensating"],
+    ["Woodbine", "WB P1", "Siokra 253B3XF", 18.22, "86–89%", "7.0", "", "", "1 MN / 20 m beat sheet; Per metre: MN: 0.05/m", "Good growth; clean for weeds"],
+    ["Donview", "P34 #02", "CSX1320B3XF", 1.50, "89–91%", "5.9–6.7", "", "", "5 MN / 20 m beat sheet; Per metre: MN: 0.25/m", "P34 combined inspection; Roundup spray noted as ordinary"],
+    ["Donview", "P34 #03", "Sicot 606B3F", 3.22, "89–91%*", "5.9–6.7*", "", "", "5 MN*; Per metre: MN: 0.25/m", "P34 combined inspection"],
+    ["Donview", "P34 #04", "Sicot 619B3XF", 1.63, "89–91%*", "5.9–6.7*", "", "", "5 MN*; Per metre: MN: 0.25/m", "P34 combined inspection"],
+    ["Donview", "P34 #05", "Sicot 606B3F", 13.37, "89–91%*", "5.9–6.7*", "", "", "5 MN*; Per metre: MN: 0.25/m", "P34 combined inspection"],
+    ["Donview", "VP2", "Sicot 606B3F", 11.97, "85–86%", "6.2–6.8", "", "", "2 MN / 20 m beat sheet; Per metre: MN: 0.1/m", "Some small boll loss; good plant height in areas"],
+    ["Kearneys", "CP1", "Sicot 606B3F", 20.38, "86–88%", "5.4–5.5", "", "", "1 MA / 20 m beat sheet; Per metre: MA: 0.05/m", "Eastern side getting leggy; bellvine present"],
+    ["Kearneys", "KP1", "Sicot 606B3F", 28.10, "79–81%", "5.5–6.0", "", "", "1 CS + 1 GVBN / 20 m beat sheet; Per metre: CS: 0.05/m; GVBN: 0.05/m", "Early bottom fruit loss in places; newer positions compensating"],
 ]
 DEFAULT_ASSESSMENT = ("Cotton crops were generally progressing well. First-position retention ranged from 79–91%. KP1 recorded the lowest retention range and had early bottom fruit loss in places. Continued monitoring of fruit retention, crop maturity, weed control and insect activity is recommended.")
 DEFAULT_RECOMMENDATIONS = ("1. Continue monitoring paddocks with lower first-position retention.\n2. Monitor boll loss and changes in NAWF at subsequent CropChecks.\n3. Follow up weed control where weeds remain present.\n4. Continue monitoring insect levels and crop maturity.")
@@ -587,7 +587,7 @@ def create_pdf(df,grower,advisor,observation,inspection_date,assessment,recommen
     story += [dt,Spacer(1,4*mm)]
     data=[[Paragraph(f"<b>{h}</b>",small) for h in COLUMNS]]
     for _,r in df.iterrows(): data.append([Paragraph(str(r[h]),small) for h in COLUMNS])
-    t=Table(data,colWidths=[22*mm,20*mm,31*mm,16*mm,28*mm,16*mm,38*mm,73*mm],repeatRows=1)
+    t=Table(data,colWidths=[18*mm,17*mm,24*mm,14*mm,23*mm,13*mm,13*mm,14*mm,32*mm,57*mm],repeatRows=1)
     t.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,0),colors.HexColor("#06385f")),("TEXTCOLOR",(0,0),(-1,0),colors.white),("GRID",(0,0),(-1,-1),.35,colors.HexColor("#a9bbc8")),("VALIGN",(0,0),(-1,-1),"TOP"),("ROWBACKGROUNDS",(0,1),(-1,-1),[colors.white,colors.HexColor("#f6fafc")]),("LEFTPADDING",(0,0),(-1,-1),3),("RIGHTPADDING",(0,0),(-1,-1),3),("TOPPADDING",(0,0),(-1,-1),3),("BOTTOMPADDING",(0,0),(-1,-1),3)]))
     total=pd.to_numeric(df["Area (ha)"],errors="coerce").fillna(0).sum()
     story += [t,Spacer(1,3*mm),Paragraph(f"<b>Total cotton area:</b> {total:.2f} ha",h2),Paragraph("Overall Assessment",h2),Paragraph((assessment or "-").replace("\n","<br/>"),body),Paragraph("Recommendations",h2),Paragraph((recommendations or "-").replace("\n","<br/>"),body)]
@@ -604,10 +604,11 @@ if "recommendations" not in st.session_state: st.session_state.recommendations=D
 if "uploaded_names" not in st.session_state: st.session_state.uploaded_names=[]
 
 # Upgrade older session data to the current schema without crashing.
-for _col in COLUMNS:
-    if _col not in st.session_state.crop_data.columns:
-        st.session_state.crop_data[_col] = ""
-st.session_state.crop_data = st.session_state.crop_data[COLUMNS]
+if "crop_data" in st.session_state:
+    for _col in COLUMNS:
+        if _col not in st.session_state.crop_data.columns:
+            st.session_state.crop_data[_col] = ""
+    st.session_state.crop_data = st.session_state.crop_data.reindex(columns=COLUMNS, fill_value="")
 
 
 logo64 = logo_base64()
