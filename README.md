@@ -93,3 +93,9 @@ To Do PDF page fix:
 - Fixed NameError caused by the undefined `h1` style.
 - The To Do List Summary page now uses the existing PDF title style.
 - All previous dashboard, PDF, recommendation, and CropCheck extraction features remain enabled.
+
+
+To Do title style fix:
+- Fixed the remaining NameError caused by `title_style` not existing in create_pdf().
+- Added a dedicated `todo_title_style` inside create_pdf() before the To Do page is built.
+- Verified that the style is defined before use.

@@ -944,10 +944,18 @@ def create_pdf(df,grower,advisor,observation,inspection_date,assessment,recommen
     ]
 
     if any("*" in str(v) for v in df["First Position Retention"].tolist()+df["NAWF"].tolist()): story += [Spacer(1,2*mm),Paragraph("* Asterisked measurements were reported as combined figures for multiple paddocks/varieties on the same CropCheck inspection page.",small)]
+    todo_title_style = ParagraphStyle(
+        "TodoTitle",
+        parent=styles["Heading1"],
+        fontSize=18,
+        leading=21,
+        textColor=colors.HexColor("#06366e"),
+    )
+
     # Separate To Do List Summary page from each uploaded CropCheck check.
     todo_items = todo_items or []
     story.append(PageBreak())
-    story.append(Paragraph("To Do List Summary", title_style))
+    story.append(Paragraph("To Do List Summary", todo_title_style))
     story.append(Paragraph(
         'Actions extracted from wording such as "Will suggest", "Recommend" or "Suggested" in the uploaded CropCheck checks.',
         body,
