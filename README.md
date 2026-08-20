@@ -73,3 +73,9 @@ Average retention update:
 - For retention ranges such as 86–89%, the midpoint is used for that paddock.
 - The dashboard then averages those paddock midpoint values.
 - The metric automatically hides when no retention data is available.
+
+
+PDF dashboard measurements update:
+- Adds dashboard measurements below the paddock table in the PDF.
+- Includes Total Cotton Area, Paddocks, Highest Retention, Lowest Retention.
+- Includes Average Retention, Average NAWF and Average NACB when data is present.

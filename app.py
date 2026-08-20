@@ -774,7 +774,119 @@ def create_pdf(df,grower,advisor,observation,inspection_date,assessment,recommen
     t = Table(data, colWidths=col_widths, repeatRows=1, splitByRow=1)
     t.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,0),colors.HexColor("#06385f")),("TEXTCOLOR",(0,0),(-1,0),colors.white),("GRID",(0,0),(-1,-1),.35,colors.HexColor("#a9bbc8")),("VALIGN",(0,0),(-1,-1),"TOP"),("ROWBACKGROUNDS",(0,1),(-1,-1),[colors.white,colors.HexColor("#f6fafc")]),("LEFTPADDING",(0,0),(-1,-1),3),("RIGHTPADDING",(0,0),(-1,-1),3),("TOPPADDING",(0,0),(-1,-1),3),("BOTTOMPADDING",(0,0),(-1,-1),3)]))
     total=pd.to_numeric(df["Area (ha)"],errors="coerce").fillna(0).sum()
-    story += [t,Spacer(1,3*mm),Paragraph(f"<b>Total cotton area:</b> {total:.2f} ha",h2),Paragraph("Overall Assessment",h2),Paragraph((assessment or "-").replace("\n","<br/>"),body),Paragraph("Recommendations",h2),Paragraph((recommendations or "-").replace("\n","<br/>"),body)]
+    low_ret, high_ret = retention_bounds(df)
+    avg_retention = (
+        average_metric_value(df["First Position Retention"])
+        if "First Position Retention" in df.columns and column_has_data(df["First Position Retention"])
+        else None
+    )
+    avg_nawf = (
+        average_metric_value(df["NAWF"])
+        if "NAWF" in df.columns and column_has_data(df["NAWF"])
+        else None
+    )
+    avg_nacb = (
+        average_metric_value(df["NACB"])
+        if "NACB" in df.columns and column_has_data(df["NACB"])
+        else None
+    )
+
+    story += [t, Spacer(1,4*mm)]
+
+
+    metric_pairs = [
+
+        ("Total Cotton Area", f"{total:.2f} ha"),
+
+        ("Paddocks", str(len(df))),
+
+        ("Highest Retention", f"{high_ret:g}%" if high_ret is not None else "—"),
+
+        ("Lowest Retention", f"{low_ret:g}%" if low_ret is not None else "—"),
+
+    ]
+
+    if avg_retention is not None:
+
+        metric_pairs.append(("Average Retention", f"{avg_retention:.1f}%"))
+
+    if avg_nawf is not None:
+
+        metric_pairs.append(("Average NAWF", f"{avg_nawf:.2f}".rstrip("0").rstrip(".")))
+
+    if avg_nacb is not None:
+
+        metric_pairs.append(("Average NACB", f"{avg_nacb:.2f}".rstrip("0").rstrip(".")))
+
+
+    metric_rows = []
+
+    for i in range(0, len(metric_pairs), 2):
+
+        left_label, left_value = metric_pairs[i]
+
+        if i + 1 < len(metric_pairs):
+
+            right_label, right_value = metric_pairs[i + 1]
+
+        else:
+
+            right_label, right_value = "", ""
+
+        metric_rows.append([
+
+            Paragraph(f"<b>{left_label}</b>", small),
+
+            Paragraph(str(left_value), body),
+
+            Paragraph(f"<b>{right_label}</b>" if right_label else "", small),
+
+            Paragraph(str(right_value) if right_label else "", body),
+
+        ])
+
+
+    metrics_table = Table(
+
+        metric_rows,
+
+        colWidths=[42*mm, 28*mm, 42*mm, 28*mm],
+
+        hAlign="LEFT",
+
+    )
+
+    metrics_table.setStyle(TableStyle([
+
+        ("BACKGROUND", (0,0), (0,-1), colors.HexColor("#eef6fb")),
+
+        ("BACKGROUND", (2,0), (2,-1), colors.HexColor("#eef6fb")),
+
+        ("GRID", (0,0), (-1,-1), 0.35, colors.HexColor("#c9d8e4")),
+
+        ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+
+        ("LEFTPADDING", (0,0), (-1,-1), 5),
+
+        ("RIGHTPADDING", (0,0), (-1,-1), 5),
+
+        ("TOPPADDING", (0,0), (-1,-1), 4),
+
+        ("BOTTOMPADDING", (0,0), (-1,-1), 4),
+
+    ]))
+
+
+    story += [
+
+        Paragraph("Dashboard Measurements", h2),
+
+        metrics_table,
+
+        Spacer(1,4*mm),
+
+    ]
+
     if any("*" in str(v) for v in df["First Position Retention"].tolist()+df["NAWF"].tolist()): story += [Spacer(1,2*mm),Paragraph("* Asterisked measurements were reported as combined figures for multiple paddocks/varieties on the same CropCheck inspection page.",small)]
     doc.build(story); return buf.getvalue()
 
