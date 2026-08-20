@@ -895,10 +895,15 @@ with center_col:
     total_area = pd.to_numeric(df["Area (ha)"], errors="coerce").fillna(0).sum()
     low_ret, high_ret = retention_bounds(df)
     st.markdown("<div class='panel'><div class='panel-title'>▥ Report Summary</div><div class='metric-wrap'>", unsafe_allow_html=True)
+    avg_retention = (
+        average_metric_value(df["First Position Retention"])
+        if "First Position Retention" in df.columns and column_has_data(df["First Position Retention"])
+        else None
+    )
     avg_nawf = average_metric_value(df["NAWF"]) if "NAWF" in df.columns and column_has_data(df["NAWF"]) else None
     avg_nacb = average_metric_value(df["NACB"]) if "NACB" in df.columns and column_has_data(df["NACB"]) else None
 
-    metric_count = 4 + (1 if avg_nawf is not None else 0) + (1 if avg_nacb is not None else 0)
+    metric_count = 4 + (1 if avg_retention is not None else 0) + (1 if avg_nawf is not None else 0) + (1 if avg_nacb is not None else 0)
     metric_cols = st.columns(metric_count)
 
     _mi = 0
@@ -907,13 +912,16 @@ with center_col:
     metric_cols[_mi].metric("Highest Retention", f"{high_ret:g}%" if high_ret is not None else "—"); _mi += 1
     metric_cols[_mi].metric("Lowest Retention", f"{low_ret:g}%" if low_ret is not None else "—"); _mi += 1
 
+    if avg_retention is not None:
+        metric_cols[_mi].metric("Average Retention", f"{avg_retention:.1f}%"); _mi += 1
+
     if avg_nawf is not None:
         metric_cols[_mi].metric("Average NAWF", f"{avg_nawf:.2f}".rstrip("0").rstrip(".")); _mi += 1
 
     if avg_nacb is not None:
         metric_cols[_mi].metric("Average NACB", f"{avg_nacb:.2f}".rstrip("0").rstrip("."))
     if avg_nawf is not None or avg_nacb is not None:
-        st.caption("Average NAWF/NACB uses the midpoint of any reported range, then averages across paddocks with data.")
+        st.caption("Average Retention, NAWF and NACB use the midpoint of any reported range, then average across paddocks with data.")
     st.markdown("</div></div>", unsafe_allow_html=True)
 
     st.markdown("<div class='table-shell'><div class='panel-title'>🧰 Cotton Paddocks</div>", unsafe_allow_html=True)

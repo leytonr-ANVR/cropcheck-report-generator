@@ -66,3 +66,10 @@ Dashboard averages update:
 - Single values are averaged directly.
 - For ranges such as 5.9–6.7, the midpoint is used before calculating the overall paddock average.
 - Metrics are hidden automatically when no valid data is present.
+
+
+Average retention update:
+- Adds Average Retention to the dashboard when retention data is present.
+- For retention ranges such as 86–89%, the midpoint is used for that paddock.
+- The dashboard then averages those paddock midpoint values.
+- The metric automatically hides when no retention data is available.
