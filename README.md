@@ -164,3 +164,9 @@ To Do paddock source update:
 - Shared recommendations can show multiple paddock names.
 - The uploaded filename is used only as a fallback if the paddock cannot be determined reliably.
 - The PDF column heading is now `Paddock`.
+
+Beat-sheet /m fix:
+- Recognises `20m beatsheet`, `20m beat sheet`, and `20m beat-sheet`.
+- Keeps the checked distance in Insect Observations.
+- Converts compact counts such as `8MN`, `16mn`, `1MA`, and `1GVB` to per-metre values.
+- Example: `20m beatsheet found 8MN` -> `8MN / 20 m beat sheet; MN: 0.4/m`.
