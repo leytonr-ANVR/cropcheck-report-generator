@@ -113,3 +113,24 @@ NAWF Cutout update:
 - When cutout is stated without a numeric NAWF value, the NAWF column shows `Cutout`.
 - Numeric NAWF values still take priority if both a number and cutout wording are present.
 - Average NAWF ignores the text value `Cutout` because it is not a numeric measurement.
+
+
+Bolls per metre range update:
+- Recognises `B/m`, `b/m`, `boll/m`, `bolls/m`, and `bolls per metre`.
+- If more than one boll-per-metre value is present in the same check, the app reports the lowest-to-highest range.
+- Example: `10 B/m` and `14 B/m` becomes `10–14` in the Bolls / m column.
+- Duplicate repeated values are collapsed to one value.
+
+
+Squares per metre update:
+- Adds a separate `Squares / m` column.
+- Recognises `S/m`, `s/m`, `square/m`, `squares/m`, and `squares per metre`.
+- If multiple square-per-metre values are present in one check, the app reports the lowest-to-highest range.
+- Example: `8 S/m` and `12 S/m` becomes `8–12`.
+- The column automatically hides when no square-per-metre data is present.
+- The generated PDF includes the column only when data exists.
+
+Boll metrics update:
+- Dashboard now shows Low Bolls / m, Average Bolls / m and High Bolls / m when data is present.
+- PDF Dashboard Measurements includes the same three boll metrics when present.
+- For a range like 10–14, low=10, high=14, average contribution=12.

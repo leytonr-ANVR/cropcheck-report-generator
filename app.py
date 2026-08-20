@@ -235,7 +235,7 @@ st.markdown(
 APP_DIR = Path(__file__).resolve().parent
 LOGO_PATH = APP_DIR / "assets" / "agnvet_rural_logo.png"
 
-COLUMNS = ["Location","Paddock","Variety","Area (ha)","Nodes","First Position Retention","NAWF","NACB","Bolls / m","Insect observations","Other observations"]
+COLUMNS = ["Location","Paddock","Variety","Area (ha)","Nodes","First Position Retention","NAWF","NACB","Bolls / m","Squares / m","Insect observations","Other observations"]
 SAMPLE_ROWS = [
     ["Woodbine", "WB P1", "Siokra 253B3XF", 18.22, "19–22", "86–89%", "7.0", "", "", "1 MN / 20 m beat sheet; Per metre: MN: 0.05/m", "Good growth; clean for weeds"],
     ["Donview", "P34 #02", "CSX1320B3XF", 1.50, "20–22", "89–91%", "5.9–6.7", "", "", "5 MN / 20 m beat sheet; Per metre: MN: 0.25/m", "P34 combined inspection; Roundup spray noted as ordinary"],
@@ -567,62 +567,114 @@ def parse_nacb(comments):
     if m: return f"{m.group(1)}–{m.group(2)}" if m.group(2) else m.group(1)
     return ""
 
-def parse_bolls_per_metre(comments):
+def parse_squares_per_metre(comments):
     """
-    Extract boll counts per metre only when the report explicitly supports the value.
+    Extract squares per metre from CropCheck notation.
 
     Supported examples:
-      "12 bolls/m"
-      "12 bolls per metre"
-      "12 bolls per meter"
-      "1m counted 12 bolls"
-      "12 bolls in 1m"
-      "2m counted 24 bolls" -> 12 bolls/m
-      "24 bolls in 2 m"     -> 12 bolls/m
+      12 S/m
+      12 s/m
+      12 squares/m
+      12 squares per metre
 
-    Counts of fruiting positions are not treated as boll counts.
+    If multiple S/m values occur in the same check, return the lowest-to-highest
+    range, e.g. 8 S/m and 12 S/m -> 8–12.
     """
     if not comments:
         return ""
 
-    # Already expressed per metre.
-    patterns_direct = [
+    values = []
+    patterns = [
+        r"\b(\d+(?:\.\d+)?)\s*[sS]\s*/\s*m\b",
+        r"\b(\d+(?:\.\d+)?)\s*squares?\s*/\s*m\b",
+        r"\b(\d+(?:\.\d+)?)\s*squares?\s+per\s+met(?:re|er)\b",
+    ]
+    for pat in patterns:
+        for m in re.finditer(pat, comments, flags=re.I):
+            values.append(float(m.group(1)))
+
+    if not values:
+        return ""
+
+    vals = sorted(set(round(v, 6) for v in values))
+
+    def _fmt(v):
+        return f"{v:.2f}".rstrip("0").rstrip(".")
+
+    if len(vals) == 1:
+        return _fmt(vals[0])
+
+    return f"{_fmt(min(vals))}–{_fmt(max(vals))}"
+
+def parse_bolls_per_metre(comments):
+    """
+    Extract boll counts per metre.
+
+    Supported examples:
+      12 B/m
+      12 b/m
+      12 bolls/m
+      12 bolls per metre
+      24 bolls in 2 m
+      2 m counted 24 bolls
+
+    If multiple B/m or b/m values are present in the same check, the app
+    reports them as a range using the lowest and highest values.
+    Example:
+      "10 B/m ... 14 B/m" -> "10–14"
+    """
+    if not comments:
+        return ""
+
+    values = []
+
+    # Direct B/m, b/m, boll/m, bolls/m, bolls per metre/meter.
+    direct_patterns = [
+        r"\b(\d+(?:\.\d+)?)\s*[bB]\s*/\s*m\b",
         r"\b(\d+(?:\.\d+)?)\s*bolls?\s*/\s*m\b",
         r"\b(\d+(?:\.\d+)?)\s*bolls?\s+per\s+met(?:re|er)\b",
     ]
-    for pat in patterns_direct:
-        m = re.search(pat, comments, re.I)
-        if m:
-            value = float(m.group(1))
-            return f"{value:g}"
+    for pat in direct_patterns:
+        for m in re.finditer(pat, comments, flags=re.I):
+            values.append(float(m.group(1)))
 
-    # Distance first: "2m counted 24 bolls"
-    m = re.search(
+    # Distance first: "2 m counted 24 bolls" -> 12 B/m
+    for m in re.finditer(
         r"\b(\d+(?:\.\d+)?)\s*m\b[^\.]{0,60}?\b(?:counted|found|had)\s+"
         r"(\d+(?:\.\d+)?)\s+bolls?\b",
         comments,
-        re.I,
-    )
-    if m:
+        flags=re.I,
+    ):
         metres = float(m.group(1))
         count = float(m.group(2))
         if metres > 0:
-            return f"{count/metres:.2f}".rstrip("0").rstrip(".")
+            values.append(count / metres)
 
-    # Count first: "24 bolls in 2 m"
-    m = re.search(
+    # Count first: "24 bolls in 2 m" -> 12 B/m
+    for m in re.finditer(
         r"\b(\d+(?:\.\d+)?)\s+bolls?\b[^\.]{0,40}?\b(?:in|over|across)\s+"
         r"(\d+(?:\.\d+)?)\s*m\b",
         comments,
-        re.I,
-    )
-    if m:
+        flags=re.I,
+    ):
         count = float(m.group(1))
         metres = float(m.group(2))
         if metres > 0:
-            return f"{count/metres:.2f}".rstrip("0").rstrip(".")
+            values.append(count / metres)
 
-    return ""
+    if not values:
+        return ""
+
+    # Remove duplicate values while preserving numerical meaning.
+    unique_values = sorted(set(round(v, 6) for v in values))
+
+    def _fmt(v):
+        return f"{v:.2f}".rstrip("0").rstrip(".")
+
+    if len(unique_values) == 1:
+        return _fmt(unique_values[0])
+
+    return f"{_fmt(min(unique_values))}–{_fmt(max(unique_values))}"
 
 def extract_other_observations(comments):
     c=clean_comments(comments)
@@ -735,6 +787,7 @@ def parse_cropcheck_pdf(file_bytes, filename):
         nawf = parse_nawf(comments)
         nacb = parse_nacb(comments)
         bolls_per_m = parse_bolls_per_metre(comments)
+        squares_per_m = parse_squares_per_metre(comments)
         insects = parse_insects(comments)
         other = extract_other_observations(comments)
         shared=len(entries)>1
@@ -745,6 +798,7 @@ def parse_cropcheck_pdf(file_bytes, filename):
                          "NAWF":nawf+("*" if shared and nawf else ""),
                          "NACB":nacb+("*" if shared and nacb else ""),
                          "Bolls / m":bolls_per_m+("*" if shared and bolls_per_m else ""),
+                         "Squares / m":squares_per_m+("*" if shared and squares_per_m else ""),
                          "Insect observations":insects+("*" if shared and insects else ""),
                          "Other observations":(other+(" Shared paddock inspection figures." if shared else "")).strip()})
     return rows,meta
@@ -917,6 +971,11 @@ def create_pdf(df,grower,advisor,observation,inspection_date,assessment,recommen
         metric_pairs.append(("Average NACB", f"{avg_nacb:.2f}".rstrip("0").rstrip(".")))
 
 
+    if boll_avg is not None:
+        metric_pairs.append(("Low Bolls / m", f"{boll_low:.2f}".rstrip("0").rstrip(".")))
+        metric_pairs.append(("Average Bolls / m", f"{boll_avg:.2f}".rstrip("0").rstrip(".")))
+        metric_pairs.append(("High Bolls / m", f"{boll_high:.2f}".rstrip("0").rstrip(".")))
+
     metric_rows = []
 
     for i in range(0, len(metric_pairs), 2):
@@ -1079,18 +1138,38 @@ def average_metric_value(series):
         return None
     return sum(values) / len(values)
 
+
+def metric_low_high_average(series):
+    lows, highs, mids = [], [], []
+    for raw in series:
+        if raw is None:
+            continue
+        nums = re.findall(r"\d+(?:\.\d+)?", str(raw))
+        if not nums:
+            continue
+        vals = [float(n) for n in nums[:2]]
+        if len(vals) == 1:
+            low = high = mid = vals[0]
+        else:
+            low, high = min(vals), max(vals)
+            mid = (low + high) / 2.0
+        lows.append(low); highs.append(high); mids.append(mid)
+    if not mids:
+        return None, None, None
+    return min(lows), max(highs), sum(mids) / len(mids)
+
 def column_has_data(series):
     cleaned = series.astype(str).str.strip().str.lower()
     return (~cleaned.isin(["", "nan", "none", "n/a", "na", "-", "—"])).any()
 
 def visible_crop_columns(df):
     core = ["Location", "Paddock", "Variety", "Area (ha)"]
-    optional = ["Nodes", "First Position Retention", "NAWF", "NACB", "Bolls / m",
+    optional = ["Nodes", "First Position Retention", "NAWF", "NACB", "Bolls / m", "Squares / m",
                 "Insect observations", "Other observations"]
     return ([c for c in core if c in df.columns] +
             [c for c in optional if c in df.columns and column_has_data(df[c])])
 
-if "crop_data" not in st.session_state: st.session_state.crop_data=pd.DataFrame(SAMPLE_ROWS,columns=COLUMNS)
+if "crop_data" not in st.session_state: st.session_state.crop_data=pd.DataFrame([row + [""] * (len(COLUMNS) - len(row)) for row in SAMPLE_ROWS], columns=COLUMNS)
 if "assessment" not in st.session_state: st.session_state.assessment=DEFAULT_ASSESSMENT
 if "recommendations" not in st.session_state: st.session_state.recommendations=DEFAULT_RECOMMENDATIONS
 if "uploaded_names" not in st.session_state: st.session_state.uploaded_names=[]
@@ -1175,8 +1254,9 @@ with center_col:
     )
     avg_nawf = average_metric_value(df["NAWF"]) if "NAWF" in df.columns and column_has_data(df["NAWF"]) else None
     avg_nacb = average_metric_value(df["NACB"]) if "NACB" in df.columns and column_has_data(df["NACB"]) else None
+    boll_low, boll_high, boll_avg = metric_low_high_average(df["Bolls / m"]) if "Bolls / m" in df.columns and column_has_data(df["Bolls / m"]) else (None, None, None)
 
-    metric_count = 4 + (1 if avg_retention is not None else 0) + (1 if avg_nawf is not None else 0) + (1 if avg_nacb is not None else 0)
+    metric_count = 4 + (1 if avg_retention is not None else 0) + (1 if avg_nawf is not None else 0) + (1 if avg_nacb is not None else 0) + (3 if boll_avg is not None else 0)
     metric_cols = st.columns(metric_count)
 
     _mi = 0
@@ -1193,8 +1273,20 @@ with center_col:
 
     if avg_nacb is not None:
         metric_cols[_mi].metric("Average NACB", f"{avg_nacb:.2f}".rstrip("0").rstrip("."))
+
+
+    if boll_avg is not None:
+
+
+        metric_cols[_mi].metric("Low Bolls / m", f"{boll_low:.2f}".rstrip("0").rstrip(".")); _mi += 1
+
+
+        metric_cols[_mi].metric("Average Bolls / m", f"{boll_avg:.2f}".rstrip("0").rstrip(".")); _mi += 1
+
+
+        metric_cols[_mi].metric("High Bolls / m", f"{boll_high:.2f}".rstrip("0").rstrip("."))
     if avg_nawf is not None or avg_nacb is not None:
-        st.caption("Average Retention, NAWF and NACB use the midpoint of any reported range, then average across paddocks with data.")
+        st.caption("Average Retention, NAWF, NACB and Bolls / m use the midpoint of any reported range. Boll low/high use the reported range limits.")
     st.markdown("</div></div>", unsafe_allow_html=True)
 
     st.markdown("<div class='table-shell'><div class='panel-title'>🧰 Cotton Paddocks</div>", unsafe_allow_html=True)
@@ -1212,6 +1304,7 @@ with center_col:
             "NAWF": st.column_config.TextColumn("NAWF", width="small"),
             "NACB": st.column_config.TextColumn("NACB", width="small"),
             "Bolls / m": st.column_config.TextColumn("Bolls / m", width="small"),
+            "Squares / m": st.column_config.TextColumn("Squares / m", width="small"),
             "Insect observations": st.column_config.TextColumn("Insects / m / Single Aphids / Cluster Aphids / WF", width="large"),
             "Other observations": st.column_config.TextColumn("Notes", width="medium"),
         },
