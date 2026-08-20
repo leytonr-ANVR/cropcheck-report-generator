@@ -52,3 +52,9 @@ Aphid reporting update:
 - Supports counts and percentages for each when explicitly stated in the CropCheck report.
 - Generic `Aphids` is only used when the source does not specify single vs cluster.
 - WF / Whitefly counts and percentages remain supported.
+
+
+Node parser error fix:
+- Fixed NameError: parse_nodes is now always defined before PDF parsing.
+- Added a defensive fallback so PDF uploads won't crash if node parsing is unavailable.
+- Existing Nodes, Single Aphids, Cluster Aphids, WF, NACB, Bolls/m and PDF wrapping features remain enabled.

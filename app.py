@@ -481,6 +481,45 @@ def parse_insects(comments):
 
     return "; ".join(dict.fromkeys(o for o in observations if o))
 
+def parse_nodes(comments):
+    """
+    Extract cotton node count from common CropCheck notation:
+      20-22n
+      19–22 n
+      20n
+      Nodes 20-22
+      node count 20-22
+    Returns the numeric range/value without the trailing n.
+    """
+    if not comments:
+        return ""
+
+    # Range followed by n, e.g. 20-22n or 19–22 n
+    m = re.search(
+        r"\b(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)\s*n\b",
+        comments,
+        flags=re.I,
+    )
+    if m:
+        return f"{m.group(1)}–{m.group(2)}"
+
+    # Single node count, e.g. 20n
+    m = re.search(r"\b(\d+(?:\.\d+)?)\s*n\b", comments, flags=re.I)
+    if m:
+        return m.group(1)
+
+    # Written wording, e.g. Nodes 20-22 or node count 20
+    m = re.search(
+        r"\b(?:nodes?|node\s*count)\s*[:=-]?\s*"
+        r"(\d+(?:\.\d+)?)(?:\s*[-–]\s*(\d+(?:\.\d+)?))?",
+        comments,
+        flags=re.I,
+    )
+    if m:
+        return f"{m.group(1)}–{m.group(2)}" if m.group(2) else m.group(1)
+
+    return ""
+
 def parse_retention(comments):
     m=re.search(r"(?:1st|first)\s+(?:pos|position)(?:ition)?\s+retention\s+(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)\s*%",comments,re.I)
     return f"{m.group(1)}–{m.group(2)}%" if m else ""
@@ -598,7 +637,13 @@ def parse_cropcheck_pdf(file_bytes, filename):
                 entries.append((location,m.group(1).strip(),m.group(2).strip(),float(m.group(3))))
             elif not re.search(r"\d+(?:\.\d+)?\s+\d+(?:\.\d+)?$",ln) and "Cotton" not in ln:
                 location=ln
-        nodes=parse_nodes(comments); retention=parse_retention(comments); nawf=parse_nawf(comments); nacb=parse_nacb(comments); bolls_per_m=parse_bolls_per_metre(comments); insects=parse_insects(comments); other=extract_other_observations(comments)
+        nodes = parse_nodes(comments) if "parse_nodes" in globals() else ""
+        retention = parse_retention(comments)
+        nawf = parse_nawf(comments)
+        nacb = parse_nacb(comments)
+        bolls_per_m = parse_bolls_per_metre(comments)
+        insects = parse_insects(comments)
+        other = extract_other_observations(comments)
         shared=len(entries)>1
         for location,paddock,variety,area in entries:
             rows.append({"Location":location,"Paddock":paddock,"Variety":variety,"Area (ha)":area,
