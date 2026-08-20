@@ -22,3 +22,9 @@ Aphid and WF percentage update:
 - It also captures WF / Whitefly percentages when explicitly stated.
 - Existing insect counts and per-metre calculations remain unchanged.
 - The app does not invent percentages when the source report only provides counts.
+
+
+PDF error fix:
+- Fixed NameError: `pdf_cols` is now defined inside create_pdf() before adaptive column widths are calculated.
+- Automatic empty-column hiding remains enabled in the app and generated PDF.
+- Aphid % and WF % extraction remains enabled.

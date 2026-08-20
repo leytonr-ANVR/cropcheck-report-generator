@@ -615,18 +615,33 @@ def create_pdf(df,grower,advisor,observation,inspection_date,assessment,recommen
              [Paragraph("<b>Observation</b>",small),Paragraph(observation or "-",small),Paragraph("<b>Inspection Date</b>",small),Paragraph(inspection_date or "-",small)]]
     dt=Table(details,colWidths=[25*mm,80*mm,30*mm,90*mm]); dt.setStyle(TableStyle([("BACKGROUND",(0,0),(0,-1),colors.HexColor("#eef6fb")),("BACKGROUND",(2,0),(2,-1),colors.HexColor("#eef6fb")),("GRID",(0,0),(-1,-1),.35,colors.HexColor("#ccdbe6")),("VALIGN",(0,0),(-1,-1),"MIDDLE"),("LEFTPADDING",(0,0),(-1,-1),5),("RIGHTPADDING",(0,0),(-1,-1),5),("TOPPADDING",(0,0),(-1,-1),4),("BOTTOMPADDING",(0,0),(-1,-1),4)]))
     story += [dt,Spacer(1,4*mm)]
-    data=[[Paragraph(f"<b>{h}</b>",small) for h in COLUMNS]]
-    for _,r in df.iterrows(): data.append([Paragraph(str(r[h]),small) for h in COLUMNS])
+    # Only include columns that contain meaningful data.
+    pdf_cols = visible_crop_columns(df)
+    if not pdf_cols:
+        pdf_cols = [c for c in COLUMNS if c in df.columns]
+
+    pdf_df = df.reindex(columns=pdf_cols, fill_value="").copy()
+    data = [pdf_cols] + pdf_df.fillna("").astype(str).values.tolist()
+
+    # Calculate widths dynamically so hidden/visible columns always fit.
     available_width = landscape(A4)[0] - 20*mm
     weight_map = {
-        "Location":1.0, "Paddock":1.0, "Variety":1.35, "Area (ha)":0.8,
-        "First Position Retention":1.2, "NAWF":0.75, "NACB":0.75,
-        "Bolls / m":0.8, "Insect observations":1.8, "Other observations":2.4
+        "Location": 1.0,
+        "Paddock": 1.0,
+        "Variety": 1.35,
+        "Area (ha)": 0.8,
+        "First Position Retention": 1.2,
+        "NAWF": 0.75,
+        "NACB": 0.75,
+        "Bolls / m": 0.8,
+        "Insect observations": 1.8,
+        "Other observations": 2.4,
     }
-    weights = [weight_map.get(c,1.0) for c in pdf_cols]
-    total_weight = sum(weights) or 1
-    col_widths = [available_width*w/total_weight for w in weights]
-    t=Table(data,colWidths=col_widths,repeatRows=1)
+    weights = [weight_map.get(col, 1.0) for col in pdf_cols]
+    total_weight = sum(weights) or 1.0
+    col_widths = [available_width * weight / total_weight for weight in weights]
+
+    t = Table(data, colWidths=col_widths, repeatRows=1)
     t.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,0),colors.HexColor("#06385f")),("TEXTCOLOR",(0,0),(-1,0),colors.white),("GRID",(0,0),(-1,-1),.35,colors.HexColor("#a9bbc8")),("VALIGN",(0,0),(-1,-1),"TOP"),("ROWBACKGROUNDS",(0,1),(-1,-1),[colors.white,colors.HexColor("#f6fafc")]),("LEFTPADDING",(0,0),(-1,-1),3),("RIGHTPADDING",(0,0),(-1,-1),3),("TOPPADDING",(0,0),(-1,-1),3),("BOTTOMPADDING",(0,0),(-1,-1),3)]))
     total=pd.to_numeric(df["Area (ha)"],errors="coerce").fillna(0).sum()
     story += [t,Spacer(1,3*mm),Paragraph(f"<b>Total cotton area:</b> {total:.2f} ha",h2),Paragraph("Overall Assessment",h2),Paragraph((assessment or "-").replace("\n","<br/>"),body),Paragraph("Recommendations",h2),Paragraph((recommendations or "-").replace("\n","<br/>"),body)]
