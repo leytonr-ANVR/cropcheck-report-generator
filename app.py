@@ -773,131 +773,115 @@ def extract_other_observations(comments):
 
 def extract_todo_recommendations(text):
     """
-    Extract only genuine, actionable recommendations from a CropCheck report.
+    Extract practical To Do actions from CropCheck report text.
 
-    Included:
-      Will suggest Pix application
-      Recommend irrigating in 5 days
-      Suggest checking aphids next inspection
-      Monitor whitefly levels
-      Recheck in 7 days
-
-    Excluded:
-      observations, crop measurements, historical actions, descriptive notes,
-      empty recommendation headings, and report/table text accidentally captured
-      after a recommendation heading.
+    This version is intentionally more tolerant of Agworld PDF formatting:
+    - recommendation wording can appear at the start, middle or end of a line
+    - "Will suggest", "Recommend", "Suggested", "Spread", "Monitor",
+      "Recheck", "Apply", "Spray", "Irrigate", "Follow up", etc. are supported
+    - recommendations split across PDF lines are handled
+    - crop observations/measurements are filtered out
     """
     if not text:
         return []
 
-    # Keep line structure because recommendations in CropCheck PDFs are normally
-    # much safer to extract line-by-line than as one flattened document.
-    raw_lines = [re.sub(r"\s+", " ", ln).strip() for ln in str(text).splitlines()]
-    lines = [ln for ln in raw_lines if ln]
+    raw_text = str(text).replace("\r", "\n")
+    # Normalise whitespace but preserve sentence/line boundaries.
+    raw_text = re.sub(r"[ \t]+", " ", raw_text)
+    raw_text = re.sub(r"\n+", "\n", raw_text)
 
-    trigger = re.compile(
-        r"^\s*(?:"
-        r"will\s+suggest|"
-        r"recommend(?:ed|ation|ations)?|"
-        r"suggest(?:ed|ion|ions)?|"
-        r"will\s+recommend"
-        r")\s*[:\-–]?\s*(.*)$",
-        re.I,
+    actions = []
+
+    action_verbs = (
+        r"monitor|recheck|check|review|apply|spray|irrigate|water|"
+        r"follow\s*up|inspect|watch|consider|organise|arrange|sample|"
+        r"treat|control|spread|use|add|increase|reduce|wait|hold|"
+        r"target|schedule|return|keep|leave|run|put|go"
     )
 
-    # These may be useful actions even without a Recommendation heading,
-    # but require an action verb and a meaningful object/timing.
-    direct_action = re.compile(
-        r"^\s*(monitor|recheck|check|review|apply|spray|irrigate|water|"
-        r"follow\s*up|inspect|watch|consider|organise|arrange|sample|spread|"
-        r"treat|control)\b\s+(.+)$",
-        re.I,
-    )
-
-    # Common report fields / measurements that indicate extraction has wandered
-    # out of the recommendation section.
-    field_boundary = re.compile(
-        r"^(?:grower|farm|location|paddock|variety|area|date|observation|"
-        r"inspection|nodes?|node\s*count|first\s+position|1st\s+pos|"
-        r"retention|nawf|nacb|bolls?\s*/?\s*m|squares?\s*/?\s*m|"
-        r"insect|beat\s+sheet|aphids?|whitefly|wf|comments?|notes?)\s*[:\-]",
-        re.I,
-    )
-
-    # Descriptive/non-action wording.
-    non_action = re.compile(
-        r"^(?:nil|none|n/?a|no\s+recommendation|no\s+action|"
-        r"good|crop\s+is|crop\s+looks|plants?\s+are|currently|"
-        r"found|noted|observed|has|had|there\s+(?:is|are)|"
-        r"\d+(?:\.\d+)?\s*(?:%|nawf|nacb|b/m|s/m))\b",
-        re.I,
+    # Stop extraction before common measurement/report fields.
+    boundary = (
+        r"(?=\s+(?:Grower|Farm|Location|Paddock|Variety|Area|Date|"
+        r"Observation|Inspection|Nodes?|Node\s*Count|First\s*Position|"
+        r"1st\s*Pos|Retention|NAWF|NACB|Bolls?\s*/?\s*m|Squares?\s*/?\s*m|"
+        r"Insect|Beat\s*Sheet|Aphids?|Whitefly|WF|Comments?|Notes?)\s*[:\-]"
+        r"|$)"
     )
 
     def clean_action(value):
-        value = re.sub(r"\s+", " ", value or "").strip(" \t.;,:-–")
-        # Stop if flattened table/report fields have been appended.
+        value = re.sub(r"\s+", " ", value or "").strip(" .;,:-–")
         value = re.split(
             r"\s+(?=(?:Grower|Farm|Location|Paddock|Variety|Area|Date|"
-            r"Observation|Inspection|Nodes?|First Position|1st Pos|Retention|"
-            r"NAWF|NACB|Bolls?\s*/?\s*m|Squares?\s*/?\s*m|Insect|"
-            r"Beat Sheet|Comments?|Notes?)\s*[:\-])",
+            r"Observation|Inspection|Nodes?|Node\s*Count|First\s*Position|"
+            r"1st\s*Pos|Retention|NAWF|NACB|Bolls?\s*/?\s*m|Squares?\s*/?\s*m|"
+            r"Insect|Beat\s*Sheet|Aphids?|Whitefly|WF|Comments?|Notes?)\s*[:\-])",
             value,
             maxsplit=1,
             flags=re.I,
         )[0].strip(" .;,:-–")
         return value
 
-    def is_relevant_action(value):
+    def relevant(value):
         if not value or len(value) < 4:
             return False
-        if field_boundary.search(value):
+
+        # Reject obvious measurement-only or descriptive fragments.
+        if re.match(
+            r"^(?:\d+(?:\.\d+)?\s*(?:%|NAWF|NACB|B/m|S/m)|"
+            r"good\b|crop\s+(?:is|looks)\b|found\b|observed\b|noted\b|"
+            r"nil\b|none\b|n/?a\b)",
+            value,
+            flags=re.I,
+        ):
             return False
-        if non_action.search(value):
-            return False
 
-        # A genuine action should normally contain an action verb.
-        action_verbs = re.compile(
-            r"\b(?:monitor|recheck|check|review|apply|spray|irrigat(?:e|ion)|"
-            r"water|follow\s*up|inspect|watch|consider|organise|arrange|"
-            r"sample|treat|control|spread|use|add|increase|reduce|wait|hold|"
-            r"target|schedule|return|keep|leave|run|put|go)\b",
-            re.I,
-        )
-        return bool(action_verbs.search(value))
+        return bool(re.search(rf"\b(?:{action_verbs})\b", value, flags=re.I))
 
-    items = []
+    # 1) Explicit recommendation phrases anywhere in the text.
+    explicit_patterns = [
+        rf"\bwill\s+suggest\b\s*[:\-–]?\s*(.+?)(?=[.!?\n]|{boundary})",
+        rf"\bwill\s+recommend\b\s*[:\-–]?\s*(.+?)(?=[.!?\n]|{boundary})",
+        rf"\brecommend(?:ed|ation|ations)?\b\s*[:\-–]?\s*(.+?)(?=[.!?\n]|{boundary})",
+        rf"\bsuggest(?:ed|ion|ions)?\b\s*[:\-–]?\s*(.+?)(?=[.!?\n]|{boundary})",
+    ]
 
-    for i, line in enumerate(lines):
-        m = trigger.match(line)
-        if m:
+    for pat in explicit_patterns:
+        for m in re.finditer(pat, raw_text, flags=re.I | re.S):
             action = clean_action(m.group(1))
+            if relevant(action):
+                actions.append(action)
 
-            # If heading and action are on separate lines, inspect only the next
-            # line, and only accept it when it looks genuinely actionable.
-            if not action and i + 1 < len(lines):
-                candidate = clean_action(lines[i + 1])
-                if not field_boundary.search(candidate):
-                    action = candidate
-
-            if is_relevant_action(action):
-                items.append(action)
+    # 2) Action sentences/lines without a recommendation heading.
+    #    This catches "Spread urea..." or "Monitor aphids..." directly.
+    chunks = re.split(r"[\n.!?]+", raw_text)
+    for chunk in chunks:
+        chunk = clean_action(chunk)
+        if not chunk:
             continue
+        if re.match(rf"^(?:{action_verbs})\b", chunk, flags=re.I) and relevant(chunk):
+            actions.append(chunk)
 
-        # Direct action lines are accepted only when they start with a clear verb.
-        m = direct_action.match(line)
-        if m:
-            action = clean_action(line)
-            if is_relevant_action(action):
-                items.append(action)
+    # 3) Handle recommendation heading on one line and action on the next.
+    lines = [clean_action(x) for x in raw_text.splitlines() if clean_action(x)]
+    for i, line in enumerate(lines[:-1]):
+        if re.fullmatch(
+            r"(?:will\s+suggest|will\s+recommend|recommend(?:ed|ation|ations)?|"
+            r"suggest(?:ed|ion|ions)?)",
+            line,
+            flags=re.I,
+        ):
+            candidate = clean_action(lines[i + 1])
+            if relevant(candidate):
+                actions.append(candidate)
 
-    # Preserve report order and remove duplicates.
+    # Preserve order and de-duplicate.
     result = []
     seen = set()
-    for item in items:
-        key = re.sub(r"\W+", " ", item.lower()).strip()
+    for action in actions:
+        key = re.sub(r"\W+", " ", action.lower()).strip()
         if key and key not in seen:
             seen.add(key)
-            result.append(item)
+            result.append(action)
 
     return result
 

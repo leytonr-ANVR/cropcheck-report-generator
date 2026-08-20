@@ -149,3 +149,11 @@ Retention typo support:
 - Supports variants such as Retension, Retantion, Retenion, Retentin and Retetion.
 - A fuzzy fallback accepts minor spelling errors within two character edits of `retention`.
 - `1st position` or `First position` followed directly by a percentage is also recognised.
+
+
+To Do extraction fix:
+- Recommendation phrases are now detected anywhere in a line, not only at the beginning.
+- Handles `Will suggest`, `Will recommend`, `Recommend`, `Recommended`, `Suggested`, and `Suggestion`.
+- Handles headings on one line with the action on the next line.
+- Direct actions such as Spread, Monitor, Recheck, Apply, Spray, Irrigate and Follow up are also captured.
+- Measurements and descriptive crop notes remain excluded.
