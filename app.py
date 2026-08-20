@@ -232,10 +232,10 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-APP_DIR = Path(__file__).parent
+APP_DIR = Path(__file__).resolve().parent
 LOGO_PATH = APP_DIR / "assets" / "agnvet_rural_logo.png"
 
-COLUMNS = ["Location","Paddock","Variety","Area (ha)","First Position Retention","NAWF","Insect observations","Other observations"]
+COLUMNS = ["Location","Paddock","Variety","Area (ha)","First Position Retention","NAWF","NACB","Bolls / m","Insect observations","Other observations"]
 SAMPLE_ROWS = [
     ["Woodbine", "WB P1", "Siokra 253B3XF", 18.22, "86–89%", "7.0", "1 MN / 20 m beat sheet; Per metre: MN: 0.05/m", "Good growth; clean for weeds"],
     ["Donview", "P34 #02", "CSX1320B3XF", 1.50, "89–91%", "5.9–6.7", "5 MN / 20 m beat sheet; Per metre: MN: 0.25/m", "P34 combined inspection; Roundup spray noted as ordinary"],
@@ -262,7 +262,14 @@ div[data-testid="stMetric"] {background:white;border:1px solid #d7e7f3;border-ra
 """, unsafe_allow_html=True)
 
 def logo_base64():
-    return base64.b64encode(LOGO_PATH.read_bytes()).decode("ascii") if LOGO_PATH.exists() else ""
+    """Return the bundled AGnVET Rural logo as base64 for reliable web display."""
+    try:
+        path = LOGO_PATH.resolve()
+        if not path.exists():
+            return ""
+        return base64.b64encode(path.read_bytes()).decode("ascii")
+    except Exception:
+        return ""
 
 def extract_range(text):
     nums = re.findall(r"\d+(?:\.\d+)?", str(text))
@@ -403,6 +410,72 @@ def parse_nawf(comments):
     m=re.search(r"(\d+(?:\.\d+)?)\s*NAWF",comments,re.I)
     return m.group(1) if m else ""
 
+def parse_nacb(comments):
+    m=re.search(r"(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)\s*NACB",comments,re.I)
+    if m: return f"{m.group(1)}–{m.group(2)}"
+    m=re.search(r"(\d+(?:\.\d+)?)\s*NACB",comments,re.I)
+    if m: return m.group(1)
+    m=re.search(r"NACB\s*(\d+(?:\.\d+)?)(?:\s*[-–]\s*(\d+(?:\.\d+)?))?",comments,re.I)
+    if m: return f"{m.group(1)}–{m.group(2)}" if m.group(2) else m.group(1)
+    return ""
+
+def parse_bolls_per_metre(comments):
+    """
+    Extract boll counts per metre only when the report explicitly supports the value.
+
+    Supported examples:
+      "12 bolls/m"
+      "12 bolls per metre"
+      "12 bolls per meter"
+      "1m counted 12 bolls"
+      "12 bolls in 1m"
+      "2m counted 24 bolls" -> 12 bolls/m
+      "24 bolls in 2 m"     -> 12 bolls/m
+
+    Counts of fruiting positions are not treated as boll counts.
+    """
+    if not comments:
+        return ""
+
+    # Already expressed per metre.
+    patterns_direct = [
+        r"\b(\d+(?:\.\d+)?)\s*bolls?\s*/\s*m\b",
+        r"\b(\d+(?:\.\d+)?)\s*bolls?\s+per\s+met(?:re|er)\b",
+    ]
+    for pat in patterns_direct:
+        m = re.search(pat, comments, re.I)
+        if m:
+            value = float(m.group(1))
+            return f"{value:g}"
+
+    # Distance first: "2m counted 24 bolls"
+    m = re.search(
+        r"\b(\d+(?:\.\d+)?)\s*m\b[^\.]{0,60}?\b(?:counted|found|had)\s+"
+        r"(\d+(?:\.\d+)?)\s+bolls?\b",
+        comments,
+        re.I,
+    )
+    if m:
+        metres = float(m.group(1))
+        count = float(m.group(2))
+        if metres > 0:
+            return f"{count/metres:.2f}".rstrip("0").rstrip(".")
+
+    # Count first: "24 bolls in 2 m"
+    m = re.search(
+        r"\b(\d+(?:\.\d+)?)\s+bolls?\b[^\.]{0,40}?\b(?:in|over|across)\s+"
+        r"(\d+(?:\.\d+)?)\s*m\b",
+        comments,
+        re.I,
+    )
+    if m:
+        count = float(m.group(1))
+        metres = float(m.group(2))
+        if metres > 0:
+            return f"{count/metres:.2f}".rstrip("0").rstrip(".")
+
+    return ""
+
 def extract_other_observations(comments):
     c=clean_comments(comments)
     c=re.sub(r"^\d+\s*[-–]\s*\d+\s*n\.\s*","",c,flags=re.I)
@@ -414,6 +487,8 @@ def extract_other_observations(comments):
         r"\d+(?:\.\d+)?\s*[-–]\s*\d+(?:\.\d+)?\s*NACB[^\.]*\.?",
         r"\d+(?:\.\d+)?\s*NACB[^\.]*\.?",
         r"NACB\s*\d+(?:\.\d+)?(?:\s*[-–]\s*\d+(?:\.\d+)?)?[^\.]*\.?",
+        r"\d+(?:\.\d+)?\s*bolls?\s*/\s*m\b\.?",
+        r"\d+(?:\.\d+)?\s*bolls?\s+per\s+met(?:re|er)\b\.?",
     ]
     for pat in patterns: c=re.sub(pat,"",c,flags=re.I)
     return re.sub(r"\s+"," ",c).strip(" .")
@@ -442,23 +517,36 @@ def parse_cropcheck_pdf(file_bytes, filename):
                 entries.append((location,m.group(1).strip(),m.group(2).strip(),float(m.group(3))))
             elif not re.search(r"\d+(?:\.\d+)?\s+\d+(?:\.\d+)?$",ln) and "Cotton" not in ln:
                 location=ln
-        retention=parse_retention(comments); nawf=parse_nawf(comments); insects=parse_insects(comments); other=extract_other_observations(comments)
+        retention=parse_retention(comments); nawf=parse_nawf(comments); nacb=parse_nacb(comments); bolls_per_m=parse_bolls_per_metre(comments); insects=parse_insects(comments); other=extract_other_observations(comments)
         shared=len(entries)>1
         for location,paddock,variety,area in entries:
             rows.append({"Location":location,"Paddock":paddock,"Variety":variety,"Area (ha)":area,
                          "First Position Retention":retention+("*" if shared and retention else ""),
                          "NAWF":nawf+("*" if shared and nawf else ""),
+                         "NACB":nacb+("*" if shared and nacb else ""),
+                         "Bolls / m":bolls_per_m+("*" if shared and bolls_per_m else ""),
                          "Insect observations":insects+("*" if shared and insects else ""),
                          "Other observations":(other+(" Shared paddock inspection figures." if shared else "")).strip()})
     return rows,meta
 
 def merge_uploaded_reports(files):
-    rows=[]; metas=[]
+    rows=[]; metas=[]; comments=[]
     for f in files:
-        r,m=parse_cropcheck_pdf(f.getvalue(),f.name); rows.extend(r); metas.append(m)
-    if not rows: return pd.DataFrame(columns=COLUMNS),metas
-    df=pd.DataFrame(rows).drop_duplicates(subset=["Location","Paddock","Variety","Area (ha)","First Position Retention","NAWF"],keep="last")
-    return df[COLUMNS].reset_index(drop=True),metas
+        r,m=parse_cropcheck_pdf(f.getvalue(),f.name)
+        rows.extend(r)
+        metas.append(m)
+    if not rows:
+        return pd.DataFrame(columns=COLUMNS), metas, comments
+    df=pd.DataFrame(rows)
+    # Ensure every expected column exists even if a field was absent in the PDF.
+    for col in COLUMNS:
+        if col not in df.columns:
+            df[col] = ""
+    df=df.drop_duplicates(
+        subset=["Location","Paddock","Variety","Area (ha)","First Position Retention","NAWF","NACB","Bolls / m"],
+        keep="last"
+    )
+    return df[COLUMNS].reset_index(drop=True), metas, comments
 
 def auto_assessment(df):
     if df.empty: return DEFAULT_ASSESSMENT
@@ -515,8 +603,16 @@ if "assessment" not in st.session_state: st.session_state.assessment=DEFAULT_ASS
 if "recommendations" not in st.session_state: st.session_state.recommendations=DEFAULT_RECOMMENDATIONS
 if "uploaded_names" not in st.session_state: st.session_state.uploaded_names=[]
 
+# Upgrade older session data to the current schema without crashing.
+for _col in COLUMNS:
+    if _col not in st.session_state.crop_data.columns:
+        st.session_state.crop_data[_col] = ""
+st.session_state.crop_data = st.session_state.crop_data[COLUMNS]
+
 
 logo64 = logo_base64()
+if not logo64:
+    st.warning("AGnVET Rural logo file could not be loaded. Check that assets/agnvet_rural_logo.png is included with the app.")
 logo_html = f'<img class="top-logo" src="data:image/png;base64,{logo64}">' if logo64 else ""
 
 st.markdown("<style>\
@@ -594,6 +690,7 @@ with center_col:
             "First Position Retention": st.column_config.TextColumn("Retention (%)", width="small"),
             "NAWF": st.column_config.TextColumn("NAWF", width="small"),
             "NACB": st.column_config.TextColumn("NACB", width="small"),
+            "Bolls / m": st.column_config.TextColumn("Bolls / m", width="small"),
             "Insect observations": st.column_config.TextColumn("Insect Observations (Per metre)", width="large"),
             "Other observations": st.column_config.TextColumn("Notes", width="medium"),
         },
